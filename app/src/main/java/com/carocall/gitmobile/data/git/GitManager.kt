@@ -95,6 +95,24 @@ object GitManager {
         }
     }
 
+    suspend fun clone(dir: File, url: String, username: String, token: String): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            val cp = UsernamePasswordCredentialsProvider(username, token)
+            Git.cloneRepository()
+                .setURI(url)
+                .setDirectory(dir)
+                .setCredentialsProvider(cp)
+                .call()
+                .use { _ ->
+                    // 克隆成功后，保存认证信息到本地 Git 配置中（方便后续同步）
+                    saveRemoteConfig(dir, url, username, token)
+                    Result.success("克隆成功")
+                }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun getHistory(repoRoot: File): List<CommitInfo> = withContext(Dispatchers.IO) {
         try {
             Git.open(repoRoot).use { git ->

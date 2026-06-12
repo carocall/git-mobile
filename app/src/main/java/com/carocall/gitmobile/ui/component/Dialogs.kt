@@ -22,11 +22,21 @@ fun InputDialog(title: String, initialValue: String = "", onDismiss: () -> Unit,
 
 @Composable
 fun PushDialog(onDismiss: () -> Unit, onConfirm: (String, String, String) -> Unit) {
+    GitAuthDialog(title = "配置远程同步", confirmText = "开始同步", onDismiss = onDismiss, onConfirm = onConfirm)
+}
+
+@Composable
+fun CloneDialog(onDismiss: () -> Unit, onConfirm: (String, String, String) -> Unit) {
+    GitAuthDialog(title = "克隆远程仓库", confirmText = "开始克隆", onDismiss = onDismiss, onConfirm = onConfirm)
+}
+
+@Composable
+fun GitAuthDialog(title: String, confirmText: String, onDismiss: () -> Unit, onConfirm: (String, String, String) -> Unit) {
     var url by remember { mutableStateOf("") }
     var user by remember { mutableStateOf("") }
     var token by remember { mutableStateOf("") }
 
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("配置远程同步") },
+    AlertDialog(onDismissRequest = onDismiss, title = { Text(title) },
         text = {
             Column {
                 TextField(url, { url = it }, label = { Text("HTTPS 远程地址") })
@@ -41,7 +51,7 @@ fun PushDialog(onDismiss: () -> Unit, onConfirm: (String, String, String) -> Uni
                 if (url.isNotBlank() && user.isNotBlank() && token.isNotBlank()) {
                     onConfirm(url, user, token)
                 }
-            }) { Text("开始同步") }
+            }) { Text(confirmText) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
     )

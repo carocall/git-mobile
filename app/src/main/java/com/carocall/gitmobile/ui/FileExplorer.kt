@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,8 +31,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import org.eclipse.jgit.api.Git
+import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
 import java.io.File
-import java.io.FileOutputStream
 import java.net.URLDecoder
 import java.net.URLEncoder
 import kotlinx.coroutines.Dispatchers
@@ -110,14 +111,41 @@ object GitManager {
             Result.failure(e)
         }
     }
+
+    suspend fun push(repoRoot: File, remoteUrl: String, token: String): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            Git.open(repoRoot).use { git ->
+                val config = git.repository.config
+                config.setString("remote", "origin", "url", remoteUrl)
+                config.save()
+
+                val pushCommand = git.push()
+                pushCommand.setRemote("origin")
+                pushCommand.setCredentialsProvider(UsernamePasswordCredentialsProvider(token, ""))
+                pushCommand.call()
+                Result.success("推送成功")
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }
 
 @Composable
 fun MainApp() {
     val navController = rememberNavController()
+    val context = LocalContext.current
+    val rootDir = remember { context.filesDir }
+
+    // 将当前目录路径状态提升到这里，并使用 rememberSaveable 持久化
+    var currentDirPath by rememberSaveable { mutableStateOf(rootDir.absolutePath) }
+    val currentDir = remember(currentDirPath) { File(currentDirPath) }
+
     NavHost(navController = navController, startDestination = "explorer") {
         composable("explorer") {
             FileExplorerScreen(
+                currentDir = currentDir,
+                onDirChange = { currentDirPath = it.absolutePath },
                 onOpenFile = { file ->
                     val encodedPath = URLEncoder.encode(file.absolutePath, "UTF-8")
                     navController.navigate("editor/$encodedPath")
@@ -149,14 +177,17 @@ fun MainApp() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FileExplorerScreen(onOpenFile: (File) -> Unit, onGoToGit: (String) -> Unit) {
+fun FileExplorerScreen(
+    currentDir: File,
+    onDirChange: (File) -> Unit,
+    onOpenFile: (File) -> Unit,
+    onGoToGit: (String) -> Unit
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val rootDir = remember { context.filesDir }
 
-    var currentDir by remember { mutableStateOf(rootDir) }
     var files by remember { mutableStateOf(currentDir.listFiles()?.toList() ?: emptyList()) }
-
     val repoRoot = remember(currentDir) { GitManager.findRepoRoot(currentDir) }
     var gitStatus by remember { mutableStateOf(RepoStatus()) }
 
@@ -165,6 +196,11 @@ fun FileExplorerScreen(onOpenFile: (File) -> Unit, onGoToGit: (String) -> Unit) 
     var showDeleteDialog by remember { mutableStateOf(false) }
     var isFolder by remember { mutableStateOf(false) }
     var selectedFile by remember { mutableStateOf<File?>(null) }
+
+    // 处理系统返回键：如果在子目录，返回上一级；如果在根目录，才退出应用
+    BackHandler(enabled = currentDir != rootDir) {
+        onDirChange(currentDir.parentFile ?: rootDir)
+    }
 
     fun refresh() {
         files = currentDir.listFiles()?.toList()
@@ -210,7 +246,7 @@ fun FileExplorerScreen(onOpenFile: (File) -> Unit, onGoToGit: (String) -> Unit) 
                 },
                 navigationIcon = {
                     if (currentDir != rootDir) {
-                        IconButton(onClick = { currentDir = currentDir.parentFile ?: rootDir }) {
+                        IconButton(onClick = { onDirChange(currentDir.parentFile ?: rootDir) }) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
                         }
                     }
@@ -247,7 +283,7 @@ fun FileExplorerScreen(onOpenFile: (File) -> Unit, onGoToGit: (String) -> Unit) 
                         }
                     }
                 },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+
             )
         },
         floatingActionButton = {
@@ -271,8 +307,8 @@ fun FileExplorerScreen(onOpenFile: (File) -> Unit, onGoToGit: (String) -> Unit) 
                 items(files) { file ->
                     val relativePath = repoRoot?.let { file.absolutePath.substringAfter(it.absolutePath + "/", "") } ?: ""
                     val statusColor = when {
-                        gitStatus.untracked.contains(relativePath) -> Color(0xFF4CAF50) // 绿色
-                        gitStatus.modified.contains(relativePath) -> Color(0xFF2196F3)  // 蓝色
+                        gitStatus.untracked.contains(relativePath) -> Color(0xFF4CAF50)
+                        gitStatus.modified.contains(relativePath) -> Color(0xFF2196F3)
                         else -> MaterialTheme.colorScheme.onSurface
                     }
 
@@ -291,7 +327,7 @@ fun FileExplorerScreen(onOpenFile: (File) -> Unit, onGoToGit: (String) -> Unit) 
                                 }
                             }
                         },
-                        modifier = Modifier.clickable { if (file.isDirectory) currentDir = file else onOpenFile(file) }
+                        modifier = Modifier.clickable { if (file.isDirectory) onDirChange(file) else onOpenFile(file) }
                     )
                 }
             }
@@ -320,7 +356,7 @@ fun FileExplorerScreen(onOpenFile: (File) -> Unit, onGoToGit: (String) -> Unit) 
 }
 
 /**
- * Git 提交界面 (VS Code 风格)
+ * Git 提交界面
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -330,6 +366,7 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
     var status by remember { mutableStateOf(RepoStatus()) }
     var selectedFiles by remember { mutableStateOf(setOf<String>()) }
     var commitMessage by remember { mutableStateOf("") }
+    var showPushDialog by remember { mutableStateOf(false) }
 
     fun refreshStatus() {
         scope.launch { status = GitManager.getStatus(repoRoot) }
@@ -341,7 +378,12 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text("源代码管理") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") } }
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") } },
+                actions = {
+                    IconButton(onClick = { showPushDialog = true }) {
+                        Icon(Icons.Default.CloudUpload, "推送到 GitHub")
+                    }
+                }
             )
         }
     ) { padding ->
@@ -364,15 +406,16 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
                         scope.launch {
                             GitManager.commit(repoRoot, commitMessage, selectedFiles.toList()).onSuccess {
                                 Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
-                                onBack()
+                                refreshStatus()
+                                commitMessage = ""
+                                selectedFiles = emptySet()
                             }.onFailure {
                                 Toast.makeText(context, "错误: ${it.message}", Toast.LENGTH_LONG).show()
                             }
                         }
                     }
                 },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = status.hasChanges
+                modifier = Modifier.fillMaxWidth()
             ) { Text("提交 (Commit)") }
 
             Spacer(Modifier.height(16.dp))
@@ -401,7 +444,47 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
                 }
             }
         }
+
+        if (showPushDialog) {
+            PushDialog(
+                onDismiss = { showPushDialog = false },
+                onConfirm = { url, token ->
+                    scope.launch {
+                        GitManager.push(repoRoot, url, token).onSuccess {
+                            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+                            showPushDialog = false
+                        }.onFailure {
+                            Toast.makeText(context, "错误: ${it.message}", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+            )
+        }
     }
+}
+
+/**
+ * 推送对话框
+ */
+@Composable
+fun PushDialog(onDismiss: () -> Unit, onConfirm: (String, String) -> Unit) {
+    var url by remember { mutableStateOf("") }
+    var token by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("推送到 GitHub (HTTPS)") },
+        text = {
+            Column {
+                TextField(value = url, onValueChange = { url = it }, label = { Text("仓库地址 (HTTPS URL)") }, placeholder = { Text("https://github.com/user/repo.git") })
+                Spacer(Modifier.height(8.dp))
+                TextField(value = token, onValueChange = { token = it }, label = { Text("Personal Access Token") }, placeholder = { Text("ghp_xxxx") })
+            }
+        },
+        confirmButton = {
+            Button(onClick = { if (url.isNotBlank() && token.isNotBlank()) onConfirm(url, token) }) { Text("推送") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+    )
 }
 
 /**

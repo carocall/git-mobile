@@ -70,6 +70,26 @@ object GitManager {
         } catch (e: Exception) { }
     }
 
+    suspend fun pull(repoRoot: File, username: String, token: String): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            Git.open(repoRoot).use { git ->
+                val cp = UsernamePasswordCredentialsProvider(username, token)
+                git.pull().setCredentialsProvider(cp).setRemote("origin").call()
+                Result.success("拉取成功")
+            }
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
+    suspend fun push(repoRoot: File, username: String, token: String): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            Git.open(repoRoot).use { git ->
+                val cp = UsernamePasswordCredentialsProvider(username, token)
+                git.push().setRemote("origin").setCredentialsProvider(cp).call()
+                Result.success("推送成功")
+            }
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
     suspend fun sync(repoRoot: File, remoteUrl: String, username: String, token: String): Result<String> = withContext(Dispatchers.IO) {
         try {
             Git.open(repoRoot).use { git ->

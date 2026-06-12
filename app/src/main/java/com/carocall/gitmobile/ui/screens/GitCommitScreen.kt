@@ -8,7 +8,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.getValue
@@ -42,18 +46,63 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
     var sessionToken by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var showConfigDialog by remember { mutableStateOf(false) }
+    var remoteConfig by remember { mutableStateOf(Triple("", "", "")) }
+    var menuExpanded by remember { mutableStateOf(false) }
 
     fun refresh() {
         scope.launch {
             status = GitManager.getStatus(repoRoot)
             history = GitManager.getHistory(repoRoot)
-            if (selectedFiles.isEmpty()) {
+            // 只有当 selectedFiles 为空时才默认全选
+            if (selectedFiles.isEmpty() && status.allChanges.isNotEmpty()) {
                 selectedFiles = status.allChanges.map { it.first }.toSet()
             }
         }
     }
 
     LaunchedEffect(Unit) { refresh() }
+
+    fun withRemoteConfig(action: (String, String, String) -> Unit) {
+        scope.launch {
+            val config = GitManager.getRemoteConfig(repoRoot)
+            remoteConfig = config
+            val (url, user, savedToken) = config
+            val currentToken = if (sessionToken.isBlank()) savedToken else sessionToken
+            if (url.isBlank() || user.isBlank() || currentToken.isBlank()) {
+                showConfigDialog = true
+            } else {
+                action(url, user, currentToken)
+            }
+        }
+    }
+
+    fun performPull(user: String, token: String) {
+        scope.launch {
+            isLoading = true
+            GitManager.pull(repoRoot, user, token).onSuccess {
+                Toast.makeText(context, "拉取成功", Toast.LENGTH_SHORT).show()
+                sessionToken = token
+                refresh()
+            }.onFailure {
+                Toast.makeText(context, "拉取失败: ${it.message}", Toast.LENGTH_LONG).show()
+            }
+            isLoading = false
+        }
+    }
+
+    fun performPush(user: String, token: String) {
+        scope.launch {
+            isLoading = true
+            GitManager.push(repoRoot, user, token).onSuccess {
+                Toast.makeText(context, "推送成功", Toast.LENGTH_SHORT).show()
+                sessionToken = token
+                refresh()
+            }.onFailure {
+                Toast.makeText(context, "推送失败: ${it.message}", Toast.LENGTH_LONG).show()
+            }
+            isLoading = false
+        }
+    }
 
     fun performSync(url: String, user: String, token: String) {
         scope.launch {
@@ -69,26 +118,41 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
         }
     }
 
-    fun handleSyncClick() {
-        scope.launch {
-            // 获取保存的配置（包含 Token）
-            val (url, user, savedToken) = GitManager.getRemoteConfig(repoRoot)
-            val currentToken = if (sessionToken.isBlank()) savedToken else sessionToken
-
-            if (url.isBlank() || user.isBlank() || currentToken.isBlank()) {
-                showConfigDialog = true
-            } else {
-                performSync(url, user, currentToken)
-            }
-        }
-    }
-
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text("源代码管理") },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") }
+                },
+                actions = {
+                    Box {
+                        IconButton(onClick = { menuExpanded = true }) { Icon(Icons.Default.MoreVert, "更多") }
+                        DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                            DropdownMenuItem(
+                                text = { Text("拉取 (Pull)") },
+                                leadingIcon = { Icon(Icons.Default.Download, null) },
+                                onClick = { menuExpanded = false; withRemoteConfig { _, u, t -> performPull(u, t) } }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("推送 (Push)") },
+                                leadingIcon = { Icon(Icons.Default.Upload, null) },
+                                onClick = { menuExpanded = false; withRemoteConfig { _, u, t -> performPush(u, t) } }
+                            )
+                            HorizontalDivider()
+                            DropdownMenuItem(
+                                text = { Text("远程设置") },
+                                leadingIcon = { Icon(Icons.Default.Settings, null) },
+                                onClick = {
+                                    scope.launch {
+                                        remoteConfig = GitManager.getRemoteConfig(repoRoot)
+                                        menuExpanded = false
+                                        showConfigDialog = true
+                                    }
+                                }
+                            )
+                        }
+                    }
                 }
             )
         }
@@ -107,10 +171,10 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
                     if (commitMessage.isNotBlank()) {
                         scope.launch {
                             GitManager.commit(repoRoot, commitMessage, selectedFiles.toList())
-                                .onSuccess { commitMessage = ""; refresh() }
+                                .onSuccess { commitMessage = ""; selectedFiles = emptySet(); refresh() }
                         }
                     } else {
-                        handleSyncClick()
+                        withRemoteConfig { url, u, t -> performSync(url, u, t) }
                     }
                 },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
@@ -118,7 +182,7 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.onSecondaryContainer)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Sync, null, modifier = Modifier.size(18.dp))
+                    Icon(if (commitMessage.isNotBlank()) Icons.Default.Sync else Icons.Default.Sync, null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                     Text(if (commitMessage.isNotBlank()) "提交" else "同步更改 ${if(status.allChanges.isNotEmpty()) status.allChanges.size else ""}")
                 }
@@ -126,7 +190,23 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
 
             LazyColumn(Modifier.fillMaxSize()) {
                 item {
-                    Text("更改", modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)).padding(16.dp, 4.dp), style = MaterialTheme.typography.labelMedium, color = Color.Gray)
+                    Row(
+                        Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)).padding(horizontal = 16.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("更改", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, color = Color.Gray)
+                        if (status.allChanges.isNotEmpty()) {
+                            val allSelected = selectedFiles.size == status.allChanges.size
+                            Text(
+                                if (allSelected) "取消全选" else "全选",
+                                modifier = Modifier.clickable {
+                                    selectedFiles = if (allSelected) emptySet() else status.allChanges.map { it.first }.toSet()
+                                },
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
                 }
                 items(status.allChanges) { (path, type) ->
                     Row(Modifier.fillMaxWidth().clickable { selectedFiles = if (selectedFiles.contains(path)) selectedFiles - path else selectedFiles + path }.padding(16.dp, 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -163,10 +243,16 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
         }
 
         if (showConfigDialog) {
-            PushDialog(onDismiss = { showConfigDialog = false }, onConfirm = { url, user, token ->
-                showConfigDialog = false
-                performSync(url, user, token)
-            })
+            PushDialog(
+                initialUrl = remoteConfig.first,
+                initialUser = remoteConfig.second,
+                initialToken = remoteConfig.third.ifBlank { sessionToken },
+                onDismiss = { showConfigDialog = false },
+                onConfirm = { url, user, token ->
+                    showConfigDialog = false
+                    performSync(url, user, token)
+                }
+            )
         }
 
         if (isLoading) {

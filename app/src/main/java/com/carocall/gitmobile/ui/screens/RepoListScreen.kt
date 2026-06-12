@@ -56,11 +56,11 @@ fun RepoListScreen(onOpenRepo: (File) -> Unit) {
         topBar = { CenterAlignedTopAppBar(title = { Text("我的仓库") }) },
         floatingActionButton = {
             Column(horizontalAlignment = Alignment.End) {
-                FloatingActionButton(
+                SmallFloatingActionButton(
                     onClick = { showCloneDialog = true },
                     modifier = Modifier.padding(bottom = 8.dp)
                 ) { Icon(Icons.Default.CloudDownload, "克隆仓库") }
-                FloatingActionButton(onClick = { showCreateDialog = true }) { Icon(Icons.Default.Add, "创建仓库") }
+                SmallFloatingActionButton(onClick = { showCreateDialog = true }) { Icon(Icons.Default.Add, "创建仓库") }
             }
         }
     ) { padding ->
@@ -92,9 +92,8 @@ fun RepoListScreen(onOpenRepo: (File) -> Unit) {
         }
 
         if (showCloneDialog) {
-            CloneDialog(onDismiss = { showCloneDialog = false }, onConfirm = { url, user, token ->
-                val repoName = url.substringAfterLast("/").substringBefore(".git")
-                val f = File(rootDir, repoName)
+            CloneDialog(onDismiss = { showCloneDialog = false }, onConfirm = { url, name, user, token ->
+                val f = File(rootDir, name)
                 if (f.exists()) {
                     Toast.makeText(context, "目录已存在", Toast.LENGTH_SHORT).show()
                 } else {

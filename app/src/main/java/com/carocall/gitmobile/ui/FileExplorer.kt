@@ -2,6 +2,7 @@ package com.carocall.gitmobile
 
 import android.net.Uri
 import android.provider.OpenableColumns
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -27,55 +28,67 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import org.eclipse.jgit.api.Git
 import java.io.File
 import java.io.FileOutputStream
 import java.net.URLDecoder
 import java.net.URLEncoder
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
- * 导航入口
+ * Git 操作管理类
  */
+object GitManager {
+    fun isGitRepo(dir: File): Boolean {
+        return File(dir, ".git").exists()
+    }
+
+    suspend fun initRepo(dir: File): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            Git.init().setDirectory(dir).call().use {
+                Result.success("Git 仓库初始化成功")
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+}
+
 @Composable
 fun MainApp() {
     val navController = rememberNavController()
-
     NavHost(navController = navController, startDestination = "explorer") {
-        // 1. 文件浏览器页面
         composable("explorer") {
             FileExplorerScreen(onOpenFile = { file ->
-                // 路径编码处理，防止特殊字符干扰路由
                 val encodedPath = URLEncoder.encode(file.absolutePath, "UTF-8")
                 navController.navigate("editor/$encodedPath")
             })
         }
-
-        // 2. 文件编辑器页面
         composable(
             route = "editor/{filePath}",
             arguments = listOf(navArgument("filePath") { type = NavType.StringType })
         ) { backStackEntry ->
             val encodedPath = backStackEntry.arguments?.getString("filePath") ?: ""
             val filePath = URLDecoder.decode(encodedPath, "UTF-8")
-            FileEditorScreen(
-                file = File(filePath),
-                onBack = { navController.popBackStack() }
-            )
+            FileEditorScreen(file = File(filePath), onBack = { navController.popBackStack() })
         }
     }
 }
 
-/**
- * 文件浏览器
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FileExplorerScreen(onOpenFile: (File) -> Unit) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val rootDir = remember { context.filesDir }
 
-    // 关键：状态保存在此 Composable 中，Navigation 返回时会自动恢复
     var currentDir by remember { mutableStateOf(rootDir) }
     var files by remember { mutableStateOf(currentDir.listFiles()?.toList() ?: emptyList()) }
+
+    // Git 相关状态
+    val isCurrentGitRepo = remember(currentDir, files) { GitManager.isGitRepo(currentDir) }
 
     var showCreateDialog by remember { mutableStateOf(false) }
     var showRenameDialog by remember { mutableStateOf(false) }
@@ -84,12 +97,12 @@ fun FileExplorerScreen(onOpenFile: (File) -> Unit) {
     var selectedFile by remember { mutableStateOf<File?>(null) }
 
     fun refresh() {
-        files = currentDir.listFiles()?.toList()?.sortedWith(
-            compareBy({ !it.isDirectory }, { it.name.lowercase() })
-        ) ?: emptyList()
+        files = currentDir.listFiles()?.toList()
+            ?.filter { it.name != ".git" } // 隐藏 .git 文件夹
+            ?.sortedWith(compareBy({ !it.isDirectory }, { it.name.lowercase() }))
+            ?: emptyList()
     }
 
-    // 导入文件
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let { selectedUri ->
             val contentResolver = context.contentResolver
@@ -112,7 +125,15 @@ fun FileExplorerScreen(onOpenFile: (File) -> Unit) {
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text(if (currentDir == rootDir) "根目录" else currentDir.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(if (currentDir == rootDir) "根目录" else currentDir.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        if (isCurrentGitRepo) {
+                            Spacer(Modifier.width(8.dp))
+                            Icon(Icons.Default.AccountTree, "Git", Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                },
                 navigationIcon = {
                     if (currentDir != rootDir) {
                         IconButton(onClick = { currentDir = currentDir.parentFile ?: rootDir }) {
@@ -120,7 +141,38 @@ fun FileExplorerScreen(onOpenFile: (File) -> Unit) {
                         }
                     }
                 },
-
+                actions = {
+                    var showTopMenu by remember { mutableStateOf(false) }
+                    Box {
+                        IconButton(onClick = { showTopMenu = true }) { Icon(Icons.Default.MoreVert, "更多") }
+                        DropdownMenu(expanded = showTopMenu, onDismissRequest = { showTopMenu = false }) {
+                            if (!isCurrentGitRepo) {
+                                DropdownMenuItem(
+                                    text = { Text("初始化 Git 仓库") },
+                                    onClick = {
+                                        showTopMenu = false
+                                        scope.launch {
+                                            GitManager.initRepo(currentDir).onSuccess {
+                                                Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+                                                refresh()
+                                            }.onFailure {
+                                                Toast.makeText(context, "错误: ${it.message}", Toast.LENGTH_LONG).show()
+                                            }
+                                        }
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.SettingsInputAntenna, null) }
+                                )
+                            } else {
+                                DropdownMenuItem(
+                                    text = { Text("Git 状态 (待开发)") },
+                                    onClick = { showTopMenu = false },
+                                    leadingIcon = { Icon(Icons.Default.Info, null) }
+                                )
+                            }
+                        }
+                    }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
             )
         },
         floatingActionButton = {
@@ -148,12 +200,10 @@ fun FileExplorerScreen(onOpenFile: (File) -> Unit) {
                         leadingContent = { Icon(if (file.isDirectory) Icons.Default.Folder else Icons.Default.Description, null, tint = if (file.isDirectory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline) },
                         trailingContent = {
                             Box {
-                                IconButton(onClick = { menuExpanded = true }) { Icon(Icons.Default.MoreVert, "更多") }
+                                IconButton(onClick = { menuExpanded = true }) { Icon(Icons.Default.MoreVert, "操作") }
                                 DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
                                     DropdownMenuItem(text = { Text("重命名") }, onClick = { menuExpanded = false; selectedFile = file; showRenameDialog = true }, leadingIcon = { Icon(Icons.Default.Edit, null) })
                                     DropdownMenuItem(text = { Text("删除") }, onClick = { menuExpanded = false; selectedFile = file; showDeleteDialog = true }, leadingIcon = { Icon(Icons.Default.Delete, null) })
-                                    DropdownMenuItem(text = { Text("复制 (暂不可用)") }, onClick = { menuExpanded = false }, leadingIcon = { Icon(Icons.Default.ContentCopy, null) })
-                                    DropdownMenuItem(text = { Text("剪切 (暂不可用)") }, onClick = { menuExpanded = false }, leadingIcon = { Icon(Icons.Default.ContentCut, null) })
                                 }
                             }
                         },
@@ -163,7 +213,6 @@ fun FileExplorerScreen(onOpenFile: (File) -> Unit) {
             }
         }
 
-        // 对话框逻辑
         if (showCreateDialog) {
             InputDialog(title = "创建${if (isFolder) "文件夹" else "文件"}", onDismiss = { showCreateDialog = false }, onConfirm = { name ->
                 val f = File(currentDir, name)
@@ -197,7 +246,6 @@ fun FileEditorScreen(file: File, onBack: () -> Unit) {
     var originalText by remember { mutableStateOf(text) }
     var showExitDialog by remember { mutableStateOf(false) }
 
-    // 撤销/重做栈 (限10步)
     val undoStack = remember { mutableStateListOf<String>() }
     val redoStack = remember { mutableStateListOf<String>() }
 
@@ -211,7 +259,6 @@ fun FileEditorScreen(file: File, onBack: () -> Unit) {
     }
 
     val isDirty = !isBinary && text != originalText
-
     BackHandler { if (isDirty) showExitDialog = true else onBack() }
 
     Scaffold(
@@ -267,10 +314,7 @@ fun FileEditorScreen(file: File, onBack: () -> Unit) {
         }
 
         if (showExitDialog) {
-            AlertDialog(
-                onDismissRequest = { showExitDialog = false },
-                title = { Text("未保存的更改") },
-                text = { Text("您有未保存的更改，确定要退出吗？") },
+            AlertDialog(onDismissRequest = { showExitDialog = false }, title = { Text("未保存的更改") }, text = { Text("您有未保存的更改，确定要退出吗？") },
                 confirmButton = { TextButton(onClick = { showExitDialog = false; onBack() }) { Text("退出") } },
                 dismissButton = { TextButton(onClick = { showExitDialog = false }) { Text("取消") } }
             )
@@ -278,9 +322,6 @@ fun FileEditorScreen(file: File, onBack: () -> Unit) {
     }
 }
 
-/**
- * 辅助函数：判断是否为二进制文件
- */
 fun isBinaryFile(file: File): Boolean {
     if (!file.exists() || file.isDirectory) return false
     return try {
@@ -296,9 +337,6 @@ fun isBinaryFile(file: File): Boolean {
     } catch (e: Exception) { true }
 }
 
-/**
- * 通用输入对话框
- */
 @Composable
 fun InputDialog(title: String, initialValue: String = "", onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
     var name by remember { mutableStateOf(initialValue) }

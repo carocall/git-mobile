@@ -14,3 +14,10 @@ data class RepoStatus(
         untracked.map { it to "Untracked" } + modified.map { it to "Modified" } +
                 added.map { it to "Added" } + removed.map { it to "Removed" }
 }
+
+data class CommitInfo(
+    val id: String,
+    val author: String,
+    val message: String,
+    val time: Long
+)

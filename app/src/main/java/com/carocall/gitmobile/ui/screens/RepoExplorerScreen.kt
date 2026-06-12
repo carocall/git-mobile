@@ -72,7 +72,6 @@ fun RepoExplorerScreen(repoRoot: File, onBackToRepos: () -> Unit, onOpenFile: (F
     // 弹窗状态
     var showCreateDialog by remember { mutableStateOf<Boolean?>(null) } // true: Folder, false: File
     var showRenameDialog by remember { mutableStateOf<File?>(null) }
-    var showPushDialog by remember { mutableStateOf(false) }
 
     fun refresh() {
         files = currentDir.listFiles()?.toList()
@@ -116,7 +115,7 @@ fun RepoExplorerScreen(repoRoot: File, onBackToRepos: () -> Unit, onOpenFile: (F
                     IconButton(onClick = { onGoToGit(repoRoot.absolutePath) }) {
                         BadgedBox(badge = { if (gitStatus.hasChanges) Badge { Text("!") } }) { Icon(Icons.Default.Source, null) }
                     }
-                    IconButton(onClick = { showPushDialog = true }) { Icon(Icons.Default.CloudUpload, null) }
+                    // 此处移除了原来的 CloudUpload 按钮
                 }
             )
         },
@@ -176,10 +175,6 @@ fun RepoExplorerScreen(repoRoot: File, onBackToRepos: () -> Unit, onOpenFile: (F
                 file.renameTo(File(file.parentFile, name)); refresh(); showRenameDialog = null
             })
         }
-        if (showPushDialog) {
-            PushDialog(onDismiss = { showPushDialog = false }, onConfirm = { url, token ->
-                scope.launch { GitManager.push(repoRoot, url, token).onSuccess { Toast.makeText(context, it, Toast.LENGTH_SHORT).show(); showPushDialog = false } }
-            })
-        }
+
     }
 }

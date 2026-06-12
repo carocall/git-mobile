@@ -1,6 +1,5 @@
 package com.carocall.gitmobile.data.model
 
-
 // --- 数据模型 ---
 
 data class RepoStatus(
@@ -19,5 +18,6 @@ data class CommitInfo(
     val id: String,
     val author: String,
     val message: String,
-    val time: Long
+    val time: Long,
+    val isRemote: Boolean = false // 新增：标识是否为云端当前位置
 )

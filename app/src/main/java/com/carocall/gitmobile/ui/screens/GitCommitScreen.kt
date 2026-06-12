@@ -18,7 +18,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.carocall.gitmobile.data.git.GitManager
@@ -40,7 +39,6 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
     var selectedFiles by remember { mutableStateOf(setOf<String>()) }
     var commitMessage by remember { mutableStateOf("") }
 
-    // 内存缓存 Token
     var sessionToken by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var showConfigDialog by remember { mutableStateOf(false) }
@@ -62,7 +60,7 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
             isLoading = true
             GitManager.sync(repoRoot, url, user, token).onSuccess {
                 Toast.makeText(context, "同步成功", Toast.LENGTH_SHORT).show()
-                sessionToken = token // 同步成功后记录 Token 到内存
+                sessionToken = token
                 refresh()
             }.onFailure {
                 Toast.makeText(context, "失败: ${it.message}", Toast.LENGTH_LONG).show()
@@ -73,11 +71,14 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
 
     fun handleSyncClick() {
         scope.launch {
-            val (url, user) = GitManager.getRemoteConfig(repoRoot)
-            if (url.isBlank() || user.isBlank() || sessionToken.isBlank()) {
+            // 获取保存的配置（包含 Token）
+            val (url, user, savedToken) = GitManager.getRemoteConfig(repoRoot)
+            val currentToken = if (sessionToken.isBlank()) savedToken else sessionToken
+
+            if (url.isBlank() || user.isBlank() || currentToken.isBlank()) {
                 showConfigDialog = true
             } else {
-                performSync(url, user, sessionToken)
+                performSync(url, user, currentToken)
             }
         }
     }
@@ -139,7 +140,21 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
                 }
                 items(history) { commit ->
                     ListItem(
-                        headlineContent = { Text(commit.message, maxLines = 1) },
+                        headlineContent = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(commit.message, maxLines = 1, modifier = Modifier.weight(1f))
+                                // 如果是云端位置，显示 Badge
+                                if (commit.isRemote) {
+                                    Surface(
+                                        color = MaterialTheme.colorScheme.primaryContainer,
+                                        shape = MaterialTheme.shapes.extraSmall,
+                                        modifier = Modifier.padding(start = 4.dp)
+                                    ) {
+                                        Text("Cloud", modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp), fontSize = 10.sp, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                    }
+                                }
+                            }
+                        },
                         supportingContent = { Text("${commit.author} • ${SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date(commit.time))}") },
                         trailingContent = { Text(commit.id, fontSize = 11.sp, color = Color.Gray) }
                     )

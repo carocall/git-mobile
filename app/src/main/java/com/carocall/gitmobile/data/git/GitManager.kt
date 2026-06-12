@@ -8,7 +8,6 @@ import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
 import java.io.File
 
-
 // --- Git 管理器 ---
 
 object GitManager {
@@ -45,25 +44,27 @@ object GitManager {
         } catch (e: Exception) { Result.failure(e) }
     }
 
-    // 获取保存的远程地址和用户名
-    suspend fun getRemoteConfig(repoRoot: File): Pair<String, String> = withContext(Dispatchers.IO) {
+    // 获取保存的远程地址、用户名和 Token
+    suspend fun getRemoteConfig(repoRoot: File): Triple<String, String, String> = withContext(Dispatchers.IO) {
         try {
             Git.open(repoRoot).use { git ->
                 val config = git.repository.config
                 val url = config.getString("remote", "origin", "url") ?: ""
                 val user = config.getString("gitmobile", "auth", "user") ?: ""
-                url to user
+                val token = config.getString("gitmobile", "auth", "token") ?: ""
+                Triple(url, user, token)
             }
-        } catch (e: Exception) { "" to "" }
+        } catch (e: Exception) { Triple("", "", "") }
     }
 
-    // 保存远程地址和用户名（不保存 Token）
-    suspend fun saveRemoteConfig(repoRoot: File, url: String, username: String) = withContext(Dispatchers.IO) {
+    // 保存远程配置，包含 Token
+    suspend fun saveRemoteConfig(repoRoot: File, url: String, username: String, token: String) = withContext(Dispatchers.IO) {
         try {
             Git.open(repoRoot).use { git ->
                 val config = git.repository.config
                 config.setString("remote", "origin", "url", url)
                 config.setString("gitmobile", "auth", "user", username)
+                config.setString("gitmobile", "auth", "token", token)
                 config.save()
             }
         } catch (e: Exception) { }
@@ -72,33 +73,44 @@ object GitManager {
     suspend fun sync(repoRoot: File, remoteUrl: String, username: String, token: String): Result<String> = withContext(Dispatchers.IO) {
         try {
             Git.open(repoRoot).use { git ->
-                saveRemoteConfig(repoRoot, remoteUrl, username)
                 val cp = UsernamePasswordCredentialsProvider(username, token)
 
-                // 先尝试 Pull
+                // 1. 先尝试 Pull (拉取)
                 try {
                     git.pull().setCredentialsProvider(cp).setRemote("origin").call()
                 } catch (e: Exception) {
-                    // 忽略错误
+                    // 忽略拉取错误（例如由于历史不相关导致的失败）
                 }
 
-                // 再执行 Push
+                // 2. 再执行 Push (推送)
                 git.push().setRemote("origin").setCredentialsProvider(cp).call()
+
+                // 3. 只有当 Push 成功没有抛出异常时，才保存配置到本地
+                saveRemoteConfig(repoRoot, remoteUrl, username, token)
+
                 Result.success("同步成功")
             }
-        } catch (e: Exception) { Result.failure(e) }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 
     suspend fun getHistory(repoRoot: File): List<CommitInfo> = withContext(Dispatchers.IO) {
         try {
             Git.open(repoRoot).use { git ->
+                // 获取远程分支的最新提交 ID (尝试 main 或 master)
+                val remoteHead = git.repository.findRef("refs/remotes/origin/main")?.objectId
+                    ?: git.repository.findRef("refs/remotes/origin/master")?.objectId
+                val remoteHeadName = remoteHead?.name
+
                 val log = git.log().setMaxCount(20).call()
                 log.map { rev ->
                     CommitInfo(
                         id = rev.name.take(7),
                         author = rev.authorIdent.name,
                         message = rev.shortMessage,
-                        time = rev.commitTime.toLong() * 1000
+                        time = rev.commitTime.toLong() * 1000,
+                        isRemote = rev.name == remoteHeadName // 标记是否为云端位置
                     )
                 }
             }

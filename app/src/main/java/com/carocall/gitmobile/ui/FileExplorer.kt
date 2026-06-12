@@ -1,6 +1,5 @@
 package com.carocall.gitmobile
 
-import android.net.Uri
 import android.provider.OpenableColumns
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -21,8 +20,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -38,17 +39,72 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
+ * Git 状态数据类
+ */
+data class RepoStatus(
+    val untracked: Set<String> = emptySet(),
+    val modified: Set<String> = emptySet(),
+    val added: Set<String> = emptySet(),
+    val removed: Set<String> = emptySet()
+) {
+    val hasChanges: Boolean get() = untracked.isNotEmpty() || modified.isNotEmpty() || added.isNotEmpty() || removed.isNotEmpty()
+    val allChanges: List<Pair<String, String>> get() {
+        return untracked.map { it to "Untracked" } +
+                modified.map { it to "Modified" } +
+                added.map { it to "Added" } +
+                removed.map { it to "Removed" }
+    }
+}
+
+/**
  * Git 操作管理类
  */
 object GitManager {
-    fun isGitRepo(dir: File): Boolean {
-        return File(dir, ".git").exists()
+    fun isGitRepo(dir: File): Boolean = File(dir, ".git").exists()
+
+    fun findRepoRoot(dir: File): File? {
+        var current: File? = dir
+        while (current != null) {
+            if (isGitRepo(current)) return current
+            current = current.parentFile
+        }
+        return null
     }
 
     suspend fun initRepo(dir: File): Result<String> = withContext(Dispatchers.IO) {
         try {
             Git.init().setDirectory(dir).call().use {
                 Result.success("Git 仓库初始化成功")
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun getStatus(repoRoot: File): RepoStatus = withContext(Dispatchers.IO) {
+        try {
+            Git.open(repoRoot).use { git ->
+                val status = git.status().call()
+                RepoStatus(
+                    untracked = status.untracked,
+                    modified = status.modified,
+                    added = status.added,
+                    removed = status.removed
+                )
+            }
+        } catch (e: Exception) {
+            RepoStatus()
+        }
+    }
+
+    suspend fun commit(repoRoot: File, message: String, files: List<String>): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            Git.open(repoRoot).use { git ->
+                val add = git.add()
+                files.forEach { add.addFilepattern(it) }
+                add.call()
+                git.commit().setMessage(message).call()
+                Result.success("提交成功")
             }
         } catch (e: Exception) {
             Result.failure(e)
@@ -61,10 +117,16 @@ fun MainApp() {
     val navController = rememberNavController()
     NavHost(navController = navController, startDestination = "explorer") {
         composable("explorer") {
-            FileExplorerScreen(onOpenFile = { file ->
-                val encodedPath = URLEncoder.encode(file.absolutePath, "UTF-8")
-                navController.navigate("editor/$encodedPath")
-            })
+            FileExplorerScreen(
+                onOpenFile = { file ->
+                    val encodedPath = URLEncoder.encode(file.absolutePath, "UTF-8")
+                    navController.navigate("editor/$encodedPath")
+                },
+                onGoToGit = { repoPath ->
+                    val encodedPath = URLEncoder.encode(repoPath, "UTF-8")
+                    navController.navigate("git_commit/$encodedPath")
+                }
+            )
         }
         composable(
             route = "editor/{filePath}",
@@ -74,12 +136,20 @@ fun MainApp() {
             val filePath = URLDecoder.decode(encodedPath, "UTF-8")
             FileEditorScreen(file = File(filePath), onBack = { navController.popBackStack() })
         }
+        composable(
+            route = "git_commit/{repoPath}",
+            arguments = listOf(navArgument("repoPath") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val encodedPath = backStackEntry.arguments?.getString("repoPath") ?: ""
+            val repoPath = URLDecoder.decode(encodedPath, "UTF-8")
+            GitCommitScreen(repoRoot = File(repoPath), onBack = { navController.popBackStack() })
+        }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FileExplorerScreen(onOpenFile: (File) -> Unit) {
+fun FileExplorerScreen(onOpenFile: (File) -> Unit, onGoToGit: (String) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val rootDir = remember { context.filesDir }
@@ -87,8 +157,8 @@ fun FileExplorerScreen(onOpenFile: (File) -> Unit) {
     var currentDir by remember { mutableStateOf(rootDir) }
     var files by remember { mutableStateOf(currentDir.listFiles()?.toList() ?: emptyList()) }
 
-    // Git 相关状态
-    val isCurrentGitRepo = remember(currentDir, files) { GitManager.isGitRepo(currentDir) }
+    val repoRoot = remember(currentDir) { GitManager.findRepoRoot(currentDir) }
+    var gitStatus by remember { mutableStateOf(RepoStatus()) }
 
     var showCreateDialog by remember { mutableStateOf(false) }
     var showRenameDialog by remember { mutableStateOf(false) }
@@ -98,9 +168,13 @@ fun FileExplorerScreen(onOpenFile: (File) -> Unit) {
 
     fun refresh() {
         files = currentDir.listFiles()?.toList()
-            ?.filter { it.name != ".git" } // 隐藏 .git 文件夹
+            ?.filter { it.name != ".git" }
             ?.sortedWith(compareBy({ !it.isDirectory }, { it.name.lowercase() }))
             ?: emptyList()
+
+        scope.launch {
+            repoRoot?.let { gitStatus = GitManager.getStatus(it) }
+        }
     }
 
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -128,7 +202,7 @@ fun FileExplorerScreen(onOpenFile: (File) -> Unit) {
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(if (currentDir == rootDir) "根目录" else currentDir.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        if (isCurrentGitRepo) {
+                        if (repoRoot != null) {
                             Spacer(Modifier.width(8.dp))
                             Icon(Icons.Default.AccountTree, "Git", Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
                         }
@@ -142,11 +216,18 @@ fun FileExplorerScreen(onOpenFile: (File) -> Unit) {
                     }
                 },
                 actions = {
+                    if (repoRoot != null) {
+                        IconButton(onClick = { onGoToGit(repoRoot.absolutePath) }) {
+                            BadgedBox(badge = { if (gitStatus.hasChanges) Badge { Text("!") } }) {
+                                Icon(Icons.Default.Source, "Git 提交")
+                            }
+                        }
+                    }
                     var showTopMenu by remember { mutableStateOf(false) }
                     Box {
                         IconButton(onClick = { showTopMenu = true }) { Icon(Icons.Default.MoreVert, "更多") }
                         DropdownMenu(expanded = showTopMenu, onDismissRequest = { showTopMenu = false }) {
-                            if (!isCurrentGitRepo) {
+                            if (repoRoot == null) {
                                 DropdownMenuItem(
                                     text = { Text("初始化 Git 仓库") },
                                     onClick = {
@@ -161,12 +242,6 @@ fun FileExplorerScreen(onOpenFile: (File) -> Unit) {
                                         }
                                     },
                                     leadingIcon = { Icon(Icons.Default.SettingsInputAntenna, null) }
-                                )
-                            } else {
-                                DropdownMenuItem(
-                                    text = { Text("Git 状态 (待开发)") },
-                                    onClick = { showTopMenu = false },
-                                    leadingIcon = { Icon(Icons.Default.Info, null) }
                                 )
                             }
                         }
@@ -194,9 +269,18 @@ fun FileExplorerScreen(onOpenFile: (File) -> Unit) {
         } else {
             LazyColumn(modifier = Modifier.padding(padding)) {
                 items(files) { file ->
+                    val relativePath = repoRoot?.let { file.absolutePath.substringAfter(it.absolutePath + "/", "") } ?: ""
+                    val statusColor = when {
+                        gitStatus.untracked.contains(relativePath) -> Color(0xFF4CAF50) // 绿色
+                        gitStatus.modified.contains(relativePath) -> Color(0xFF2196F3)  // 蓝色
+                        else -> MaterialTheme.colorScheme.onSurface
+                    }
+
                     var menuExpanded by remember { mutableStateOf(false) }
                     ListItem(
-                        headlineContent = { Text(file.name) },
+                        headlineContent = {
+                            Text(file.name, color = statusColor, fontWeight = if (statusColor != MaterialTheme.colorScheme.onSurface) FontWeight.Bold else FontWeight.Normal)
+                        },
                         leadingContent = { Icon(if (file.isDirectory) Icons.Default.Folder else Icons.Default.Description, null, tint = if (file.isDirectory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline) },
                         trailingContent = {
                             Box {
@@ -231,6 +315,91 @@ fun FileExplorerScreen(onOpenFile: (File) -> Unit) {
                 confirmButton = { Button(colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error), onClick = { selectedFile?.deleteRecursively(); refresh(); showDeleteDialog = false }) { Text("删除") } },
                 dismissButton = { TextButton(onClick = { showDeleteDialog = false }) { Text("取消") } }
             )
+        }
+    }
+}
+
+/**
+ * Git 提交界面 (VS Code 风格)
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var status by remember { mutableStateOf(RepoStatus()) }
+    var selectedFiles by remember { mutableStateOf(setOf<String>()) }
+    var commitMessage by remember { mutableStateOf("") }
+
+    fun refreshStatus() {
+        scope.launch { status = GitManager.getStatus(repoRoot) }
+    }
+
+    LaunchedEffect(Unit) { refreshStatus() }
+
+    Scaffold(
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = { Text("源代码管理") },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") } }
+            )
+        }
+    ) { padding ->
+        Column(Modifier.padding(padding).padding(16.dp)) {
+            OutlinedTextField(
+                value = commitMessage,
+                onValueChange = { commitMessage = it },
+                label = { Text("提交信息 (Commit Message)") },
+                modifier = Modifier.fillMaxWidth(),
+                maxLines = 3
+            )
+            Spacer(Modifier.height(8.dp))
+            Button(
+                onClick = {
+                    if (commitMessage.isBlank()) {
+                        Toast.makeText(context, "请输入提交信息", Toast.LENGTH_SHORT).show()
+                    } else if (selectedFiles.isEmpty()) {
+                        Toast.makeText(context, "请选择要提交的文件", Toast.LENGTH_SHORT).show()
+                    } else {
+                        scope.launch {
+                            GitManager.commit(repoRoot, commitMessage, selectedFiles.toList()).onSuccess {
+                                Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+                                onBack()
+                            }.onFailure {
+                                Toast.makeText(context, "错误: ${it.message}", Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = status.hasChanges
+            ) { Text("提交 (Commit)") }
+
+            Spacer(Modifier.height(16.dp))
+            Text("更改内容", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+
+            LazyColumn {
+                items(status.allChanges) { (path, type) ->
+                    Row(
+                        Modifier.fillMaxWidth().clickable {
+                            selectedFiles = if (selectedFiles.contains(path)) selectedFiles - path else selectedFiles + path
+                        }.padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(checked = selectedFiles.contains(path), onCheckedChange = {
+                            selectedFiles = if (it) selectedFiles + path else selectedFiles - path
+                        })
+                        Column {
+                            Text(path, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(type, fontSize = 12.sp, color = when(type) {
+                                "Untracked" -> Color(0xFF4CAF50)
+                                "Modified" -> Color(0xFF2196F3)
+                                else -> Color.Gray
+                            })
+                        }
+                    }
+                }
+            }
         }
     }
 }

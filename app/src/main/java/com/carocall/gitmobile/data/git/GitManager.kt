@@ -73,7 +73,7 @@ object GitManager {
         try {
             Git.open(repoRoot).use { git ->
                 saveRemoteConfig(repoRoot, remoteUrl, token)
-                val cp = UsernamePasswordCredentialsProvider(token, "")
+                val cp = UsernamePasswordCredentialsProvider("carocall",token)
 
                 // 先尝试 Pull
                 try {

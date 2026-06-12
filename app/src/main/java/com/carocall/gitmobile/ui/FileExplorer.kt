@@ -1,5 +1,10 @@
 package com.carocall.gitmobile
 
+import android.net.Uri
+import android.provider.OpenableColumns
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -13,47 +18,68 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import java.io.File
+import java.io.FileOutputStream
+
+@Composable
+fun MainApp() {
+    // 简单的导航状态：null 表示在浏览器，非 null 表示正在编辑该文件
+    var editingFile by remember { mutableStateOf<File?>(null) }
+
+    if (editingFile == null) {
+        FileExplorerScreen(onOpenFile = { editingFile = it })
+    } else {
+        FileEditorScreen(file = editingFile!!, onBack = { editingFile = null })
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FileExplorerScreen() {
+fun FileExplorerScreen(onOpenFile: (File) -> Unit) {
     val context = LocalContext.current
     val rootDir = remember { context.filesDir }
     var currentDir by remember { mutableStateOf(rootDir) }
     var files by remember { mutableStateOf(currentDir.listFiles()?.toList() ?: emptyList()) }
 
-    // 对话框状态管理
     var showCreateDialog by remember { mutableStateOf(false) }
     var showRenameDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
-
     var isFolder by remember { mutableStateOf(false) }
     var selectedFile by remember { mutableStateOf<File?>(null) }
 
-    // 刷新文件列表
     fun refresh() {
         files = currentDir.listFiles()?.toList()?.sortedWith(
             compareBy({ !it.isDirectory }, { it.name.lowercase() })
         ) ?: emptyList()
     }
 
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let { selectedUri ->
+            val contentResolver = context.contentResolver
+            val fileName = contentResolver.query(selectedUri, null, null, null, null)?.use { cursor ->
+                val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                cursor.moveToFirst()
+                cursor.getString(nameIndex)
+            } ?: "imported_${System.currentTimeMillis()}"
+            try {
+                contentResolver.openInputStream(selectedUri)?.use { input ->
+                    File(currentDir, fileName).outputStream().use { output -> input.copyTo(output) }
+                }
+                refresh()
+            } catch (e: Exception) { e.printStackTrace() }
+        }
+    }
+
     LaunchedEffect(currentDir) { refresh() }
 
     Scaffold(
-        modifier = Modifier.fillMaxSize(),
         topBar = {
             CenterAlignedTopAppBar(
-                title = {
-                    Text(
-                        text = if (currentDir == rootDir) "根目录" else currentDir.name,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                },
+                title = { Text(if (currentDir == rootDir) "根目录" else currentDir.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
                     if (currentDir != rootDir) {
                         IconButton(onClick = { currentDir = currentDir.parentFile ?: rootDir }) {
@@ -61,179 +87,156 @@ fun FileExplorerScreen() {
                         }
                     }
                 },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                )
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
             )
         },
         floatingActionButton = {
             Column(horizontalAlignment = Alignment.End) {
-                // 新建文件夹 (改为大按钮)
-                FloatingActionButton(
-                    onClick = { isFolder = true; showCreateDialog = true },
-                    modifier = Modifier.padding(bottom = 16.dp)
-                ) {
-                    Icon(Icons.Default.CreateNewFolder, "新建文件夹")
+                FloatingActionButton(onClick = { importLauncher.launch("*/*") }, modifier = Modifier.padding(bottom = 16.dp), containerColor = MaterialTheme.colorScheme.secondaryContainer) {
+                    Icon(Icons.Default.UploadFile, "导入")
                 }
-                // 新建文件
+                FloatingActionButton(onClick = { isFolder = true; showCreateDialog = true }, modifier = Modifier.padding(bottom = 16.dp)) {
+                    Icon(Icons.Default.CreateNewFolder, "文件夹")
+                }
                 FloatingActionButton(onClick = { isFolder = false; showCreateDialog = true }) {
-                    Icon(Icons.Default.Add, "新建文件")
+                    Icon(Icons.Default.Add, "文件")
                 }
             }
         }
-    ) { innerPadding ->
+    ) { padding ->
         if (files.isEmpty()) {
-            Box(Modifier.fillMaxSize().padding(innerPadding), Alignment.Center) {
-                Text("文件夹为空", color = MaterialTheme.colorScheme.outline)
-            }
+            Box(Modifier.fillMaxSize().padding(padding), Alignment.Center) { Text("文件夹为空", color = MaterialTheme.colorScheme.outline) }
         } else {
-            LazyColumn(modifier = Modifier.padding(innerPadding)) {
+            LazyColumn(modifier = Modifier.padding(padding)) {
                 items(files) { file ->
                     var menuExpanded by remember { mutableStateOf(false) }
-
                     ListItem(
                         headlineContent = { Text(file.name) },
-                        leadingContent = {
-                            Icon(
-                                if (file.isDirectory) Icons.Default.Folder else Icons.Default.Description,
-                                contentDescription = null,
-                                tint = if (file.isDirectory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
-                            )
-                        },
+                        leadingContent = { Icon(if (file.isDirectory) Icons.Default.Folder else Icons.Default.Description, null, tint = if (file.isDirectory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline) },
                         trailingContent = {
                             Box {
-                                IconButton(onClick = { menuExpanded = true }) {
-                                    Icon(Icons.Default.MoreVert, contentDescription = "更多操作")
-                                }
-                                // 操作菜单
-                                DropdownMenu(
-                                    expanded = menuExpanded,
-                                    onDismissRequest = { menuExpanded = false }
-                                ) {
-                                    DropdownMenuItem(
-                                        text = { Text("重命名") },
-                                        onClick = {
-                                            menuExpanded = false
-                                            selectedFile = file
-                                            showRenameDialog = true
-                                        },
-                                        leadingIcon = { Icon(Icons.Default.Edit, null) }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("删除") },
-                                        onClick = {
-                                            menuExpanded = false
-                                            selectedFile = file
-                                            showDeleteDialog = true
-                                        },
-                                        leadingIcon = { Icon(Icons.Default.Delete, null) }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("复制 (暂不可用)") },
-                                        onClick = { menuExpanded = false },
-                                        leadingIcon = { Icon(Icons.Default.ContentCopy, null) }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("剪切 (暂不可用)") },
-                                        onClick = { menuExpanded = false },
-                                        leadingIcon = { Icon(Icons.Default.ContentCut, null) }
-                                    )
+                                IconButton(onClick = { menuExpanded = true }) { Icon(Icons.Default.MoreVert, "更多") }
+                                DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                                    DropdownMenuItem(text = { Text("重命名") }, onClick = { menuExpanded = false; selectedFile = file; showRenameDialog = true }, leadingIcon = { Icon(Icons.Default.Edit, null) })
+                                    DropdownMenuItem(text = { Text("删除") }, onClick = { menuExpanded = false; selectedFile = file; showDeleteDialog = true }, leadingIcon = { Icon(Icons.Default.Delete, null) })
                                 }
                             }
                         },
                         modifier = Modifier.clickable {
-                            if (file.isDirectory) currentDir = file
+                            if (file.isDirectory) currentDir = file else onOpenFile(file)
                         }
                     )
                 }
             }
         }
-
-        // --- 对话框部分 ---
-
-        // 1. 新建对话框
+        // ... 对话框逻辑 (InputDialog, DeleteDialog) 与之前一致 ...
         if (showCreateDialog) {
-            InputDialog(
-                title = "创建${if (isFolder) "文件夹" else "文件"}",
-                onDismiss = { showCreateDialog = false },
-                onConfirm = { name ->
-                    val f = File(currentDir, name)
-                    if (isFolder) f.mkdirs() else f.createNewFile()
-                    refresh()
-                }
-            )
+            InputDialog(title = "创建${if (isFolder) "文件夹" else "文件"}", onDismiss = { showCreateDialog = false }, onConfirm = { name ->
+                val f = File(currentDir, name)
+                if (isFolder) f.mkdirs() else f.createNewFile()
+                refresh()
+            })
         }
-
-        // 2. 重命名对话框
         if (showRenameDialog && selectedFile != null) {
-            InputDialog(
-                title = "重命名",
-                initialValue = selectedFile!!.name,
-                onDismiss = { showRenameDialog = false },
-                onConfirm = { newName ->
-                    val dest = File(selectedFile!!.parentFile, newName)
-                    selectedFile!!.renameTo(dest)
-                    refresh()
-                }
-            )
+            InputDialog(title = "重命名", initialValue = selectedFile!!.name, onDismiss = { showRenameDialog = false }, onConfirm = { newName ->
+                File(selectedFile!!.parentFile, newName).let { selectedFile!!.renameTo(it) }
+                refresh()
+            })
         }
-
-        // 3. 删除确认对话框
         if (showDeleteDialog && selectedFile != null) {
-            AlertDialog(
-                onDismissRequest = { showDeleteDialog = false },
-                title = { Text("确认删除") },
-                text = { Text("确定要删除 '${selectedFile!!.name}' 吗？此操作不可撤销。") },
-                confirmButton = {
-                    Button(
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                        onClick = {
-                            selectedFile?.deleteRecursively() // 文件夹会连通内容一起删除
-                            refresh()
-                            showDeleteDialog = false
-                        }
-                    ) { Text("删除") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showDeleteDialog = false }) { Text("取消") }
-                }
+            AlertDialog(onDismissRequest = { showDeleteDialog = false }, title = { Text("确认删除") }, text = { Text("确定删除 '${selectedFile!!.name}'？") },
+                confirmButton = { Button(colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error), onClick = { selectedFile?.deleteRecursively(); refresh(); showDeleteDialog = false }) { Text("删除") } },
+                dismissButton = { TextButton(onClick = { showDeleteDialog = false }) { Text("取消") } }
             )
         }
     }
 }
 
-/**
- * 通用的输入对话框组件
- */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun InputDialog(
-    title: String,
-    initialValue: String = "",
-    onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit
-) {
+fun FileEditorScreen(file: File, onBack: () -> Unit) {
+    // 读取文件内容
+    var text by remember { mutableStateOf(try { file.readText() } catch (e: Exception) { "" }) }
+    var originalText by remember { mutableStateOf(text) }
+    var showExitDialog by remember { mutableStateOf(false) }
+
+    // 撤销/重做栈 (限10步)
+    val undoStack = remember { mutableStateListOf<String>() }
+    val redoStack = remember { mutableStateListOf<String>() }
+
+    fun handleTextChange(newText: String) {
+        if (newText != text) {
+            if (undoStack.size >= 10) undoStack.removeAt(0)
+            undoStack.add(text)
+            text = newText
+            redoStack.clear()
+        }
+    }
+
+    val isDirty = text != originalText
+
+    BackHandler { if (isDirty) showExitDialog = true else onBack() }
+
+    Scaffold(
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = { },
+                navigationIcon = {
+                    IconButton(onClick = { if (isDirty) showExitDialog = true else onBack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = {
+                        redoStack.add(text)
+                        text = undoStack.removeAt(undoStack.size - 1)
+                    }, enabled = undoStack.isNotEmpty()) { Icon(Icons.Default.Undo, "撤销") }
+
+                    IconButton(onClick = {
+                        undoStack.add(text)
+                        text = redoStack.removeAt(redoStack.size - 1)
+                    }, enabled = redoStack.isNotEmpty()) { Icon(Icons.Default.Redo, "下一步") }
+
+                    IconButton(onClick = {
+                        file.writeText(text)
+                        originalText = text
+                    }, enabled = isDirty) { Icon(Icons.Default.Save, "保存") }
+                }
+            )
+        }
+    ) { padding ->
+        TextField(
+            value = text,
+            onValueChange = { handleTextChange(it) },
+            modifier = Modifier.fillMaxSize().padding(padding),
+            colors = TextFieldDefaults.colors(
+                focusedContainerColor = Color.Transparent,
+                unfocusedContainerColor = Color.Transparent,
+                focusedIndicatorColor = Color.Transparent,
+                unfocusedIndicatorColor = Color.Transparent
+            )
+        )
+
+        if (showExitDialog) {
+            AlertDialog(
+                onDismissRequest = { showExitDialog = false },
+                title = { Text("未保存的更改") },
+                text = { Text("您有未保存的更改，确定要退出吗？") },
+                confirmButton = { TextButton(onClick = { showExitDialog = false; onBack() }) { Text("退出") } },
+                dismissButton = { TextButton(onClick = { showExitDialog = false }) { Text("取消") } }
+            )
+        }
+    }
+}
+
+@Composable
+fun InputDialog(title: String, initialValue: String = "", onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
     var name by remember { mutableStateOf(initialValue) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
-        text = {
-            TextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text("名称") },
-                singleLine = true
-            )
-        },
-        confirmButton = {
-            Button(onClick = {
-                if (name.isNotBlank()) {
-                    onConfirm(name)
-                    onDismiss()
-                }
-            }) { Text("确定") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
-        }
+        text = { TextField(value = name, onValueChange = { name = it }, label = { Text("名称") }, singleLine = true) },
+        confirmButton = { Button(onClick = { if (name.isNotBlank()) { onConfirm(name); onDismiss() } }) { Text("确定") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
     )
 }

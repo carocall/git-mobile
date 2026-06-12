@@ -17,9 +17,7 @@ object GitManager {
     suspend fun initRepo(dir: File): Result<String> = withContext(Dispatchers.IO) {
         try {
             Git.init().setDirectory(dir).call().use { Result.success("初始化成功") }
-        } catch (e: Exception) { Result.failure(e)
-
-        }
+        } catch (e: Exception) { Result.failure(e) }
     }
 
     suspend fun getStatus(repoRoot: File): RepoStatus = withContext(Dispatchers.IO) {
@@ -47,39 +45,41 @@ object GitManager {
         } catch (e: Exception) { Result.failure(e) }
     }
 
+    // 获取保存的远程地址和用户名
     suspend fun getRemoteConfig(repoRoot: File): Pair<String, String> = withContext(Dispatchers.IO) {
         try {
             Git.open(repoRoot).use { git ->
                 val config = git.repository.config
                 val url = config.getString("remote", "origin", "url") ?: ""
-                val token = config.getString("gitmobile", "auth", "token") ?: ""
-                url to token
+                val user = config.getString("gitmobile", "auth", "user") ?: ""
+                url to user
             }
         } catch (e: Exception) { "" to "" }
     }
 
-    suspend fun saveRemoteConfig(repoRoot: File, url: String, token: String) = withContext(Dispatchers.IO) {
+    // 保存远程地址和用户名（不保存 Token）
+    suspend fun saveRemoteConfig(repoRoot: File, url: String, username: String) = withContext(Dispatchers.IO) {
         try {
             Git.open(repoRoot).use { git ->
                 val config = git.repository.config
                 config.setString("remote", "origin", "url", url)
-                config.setString("gitmobile", "auth", "token", token)
+                config.setString("gitmobile", "auth", "user", username)
                 config.save()
             }
         } catch (e: Exception) { }
     }
 
-    suspend fun sync(repoRoot: File, remoteUrl: String, token: String): Result<String> = withContext(Dispatchers.IO) {
+    suspend fun sync(repoRoot: File, remoteUrl: String, username: String, token: String): Result<String> = withContext(Dispatchers.IO) {
         try {
             Git.open(repoRoot).use { git ->
-                saveRemoteConfig(repoRoot, remoteUrl, token)
-                val cp = UsernamePasswordCredentialsProvider("carocall",token)
+                saveRemoteConfig(repoRoot, remoteUrl, username)
+                val cp = UsernamePasswordCredentialsProvider(username, token)
 
                 // 先尝试 Pull
                 try {
                     git.pull().setCredentialsProvider(cp).setRemote("origin").call()
                 } catch (e: Exception) {
-                    // 如果是新仓库或没有远程分支，忽略错误
+                    // 忽略错误
                 }
 
                 // 再执行 Push

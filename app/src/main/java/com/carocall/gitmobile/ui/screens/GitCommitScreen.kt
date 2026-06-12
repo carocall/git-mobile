@@ -39,8 +39,10 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
     var history by remember { mutableStateOf<List<CommitInfo>>(emptyList()) }
     var selectedFiles by remember { mutableStateOf(setOf<String>()) }
     var commitMessage by remember { mutableStateOf("") }
-    var isLoading by remember { mutableStateOf(false) }
 
+    // 内存缓存 Token
+    var sessionToken by remember { mutableStateOf("") }
+    var isLoading by remember { mutableStateOf(false) }
     var showConfigDialog by remember { mutableStateOf(false) }
 
     fun refresh() {
@@ -55,20 +57,27 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
 
     LaunchedEffect(Unit) { refresh() }
 
-    fun handleSync() {
+    fun performSync(url: String, user: String, token: String) {
         scope.launch {
-            val (url, token) = GitManager.getRemoteConfig(repoRoot)
-            if (url.isBlank() || token.isBlank()) {
+            isLoading = true
+            GitManager.sync(repoRoot, url, user, token).onSuccess {
+                Toast.makeText(context, "同步成功", Toast.LENGTH_SHORT).show()
+                sessionToken = token // 同步成功后记录 Token 到内存
+                refresh()
+            }.onFailure {
+                Toast.makeText(context, "失败: ${it.message}", Toast.LENGTH_LONG).show()
+            }
+            isLoading = false
+        }
+    }
+
+    fun handleSyncClick() {
+        scope.launch {
+            val (url, user) = GitManager.getRemoteConfig(repoRoot)
+            if (url.isBlank() || user.isBlank() || sessionToken.isBlank()) {
                 showConfigDialog = true
             } else {
-                isLoading = true
-                GitManager.sync(repoRoot, url, token).onSuccess {
-                    Toast.makeText(context, "同步成功", Toast.LENGTH_SHORT).show()
-                    refresh()
-                }.onFailure {
-                    Toast.makeText(context, "同步失败: ${it.message}", Toast.LENGTH_LONG).show()
-                }
-                isLoading = false
+                performSync(url, user, sessionToken)
             }
         }
     }
@@ -76,7 +85,7 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("源代码管理", fontSize = 18.sp) },
+                title = { Text("源代码管理") },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") }
                 }
@@ -87,10 +96,9 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
             OutlinedTextField(
                 value = commitMessage,
                 onValueChange = { commitMessage = it },
-                placeholder = { Text("提交变更内容(Ctrl+Enter在\"main\"提交)") },
+                placeholder = { Text("提交变更内容...") },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                maxLines = 3,
-                shape = MaterialTheme.shapes.small
+                maxLines = 3
             )
 
             Button(
@@ -98,21 +106,15 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
                     if (commitMessage.isNotBlank()) {
                         scope.launch {
                             GitManager.commit(repoRoot, commitMessage, selectedFiles.toList())
-                                .onSuccess {
-                                    commitMessage = ""
-                                    refresh()
-                                }
+                                .onSuccess { commitMessage = ""; refresh() }
                         }
                     } else {
-                        handleSync()
+                        handleSyncClick()
                     }
                 },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                 shape = MaterialTheme.shapes.extraSmall,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                )
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.onSecondaryContainer)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Sync, null, modifier = Modifier.size(18.dp))
@@ -123,67 +125,22 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
 
             LazyColumn(Modifier.fillMaxSize()) {
                 item {
-                    Text(
-                        "更改",
-                        modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)).padding(horizontal = 16.dp, vertical = 4.dp),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = Color.Gray
-                    )
+                    Text("更改", modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)).padding(16.dp, 4.dp), style = MaterialTheme.typography.labelMedium, color = Color.Gray)
                 }
-
                 items(status.allChanges) { (path, type) ->
-                    Row(
-                        Modifier.fillMaxWidth().clickable {
-                            selectedFiles = if (selectedFiles.contains(path)) selectedFiles - path else selectedFiles + path
-                        }.padding(horizontal = 16.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Checkbox(checked = selectedFiles.contains(path), onCheckedChange = {
-                            selectedFiles = if (it) selectedFiles + path else selectedFiles - path
-                        }, modifier = Modifier.size(32.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(path, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(File(path).parent ?: "", fontSize = 11.sp, color = Color.Gray)
-                        }
-                        Text(
-                            when(type) {
-                                "Untracked" -> "U"
-                                "Modified" -> "M"
-                                "Added" -> "A"
-                                "Removed" -> "D"
-                                else -> ""
-                            },
-                            color = when(type) {
-                                "Untracked" -> Color(0xFF4CAF50)
-                                "Modified" -> Color(0xFF2196F3)
-                                "Removed" -> Color.Red
-                                else -> Color.Gray
-                            },
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp
-                        )
+                    Row(Modifier.fillMaxWidth().clickable { selectedFiles = if (selectedFiles.contains(path)) selectedFiles - path else selectedFiles + path }.padding(16.dp, 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = selectedFiles.contains(path), onCheckedChange = { selectedFiles = if (it) selectedFiles + path else selectedFiles - path })
+                        Text(path, modifier = Modifier.weight(1f), fontSize = 14.sp)
+                        Text(type.take(1), color = if (type == "Untracked") Color(0xFF4CAF50) else Color(0xFF2196F3), fontWeight = FontWeight.Bold)
                     }
                 }
-
                 item {
-                    Text(
-                        "提交历史",
-                        modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)).padding(horizontal = 16.dp, vertical = 4.dp),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = Color.Gray
-                    )
+                    Text("最近提交", modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)).padding(16.dp, 4.dp), style = MaterialTheme.typography.labelMedium, color = Color.Gray)
                 }
-
                 items(history) { commit ->
                     ListItem(
-                        headlineContent = { Text(commit.message, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                        supportingContent = {
-                            val date = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(commit.time))
-                            Text("${commit.author} • $date", fontSize = 12.sp)
-                        },
-                        leadingContent = {
-                            Box(Modifier.size(8.dp).background(MaterialTheme.colorScheme.primary, shape = androidx.compose.foundation.shape.CircleShape))
-                        },
+                        headlineContent = { Text(commit.message, maxLines = 1) },
+                        supportingContent = { Text("${commit.author} • ${SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date(commit.time))}") },
                         trailingContent = { Text(commit.id, fontSize = 11.sp, color = Color.Gray) }
                     )
                 }
@@ -191,24 +148,14 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
         }
 
         if (showConfigDialog) {
-            PushDialog(
-                onDismiss = { showConfigDialog = false },
-                onConfirm = { url, token ->
-                    scope.launch {
-                        GitManager.saveRemoteConfig(repoRoot, url, token)
-                        showConfigDialog = false
-                        handleSync()
-                    }
-                }
-            )
+            PushDialog(onDismiss = { showConfigDialog = false }, onConfirm = { url, user, token ->
+                showConfigDialog = false
+                performSync(url, user, token)
+            })
         }
 
         if (isLoading) {
-            AlertDialog(
-                onDismissRequest = {},
-                confirmButton = {},
-                text = { Row(verticalAlignment = Alignment.CenterVertically) { CircularProgressIndicator(); Spacer(Modifier.width(16.dp)); Text("正在同步...") } }
-            )
+            AlertDialog(onDismissRequest = {}, confirmButton = {}, text = { Row(verticalAlignment = Alignment.CenterVertically) { CircularProgressIndicator(); Spacer(Modifier.width(16.dp)); Text("同步中...") } })
         }
     }
 }

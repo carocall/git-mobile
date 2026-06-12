@@ -1,18 +1,14 @@
 package com.carocall.gitmobile.ui.component
 
 import androidx.compose.foundation.layout.Column
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextField
-import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-
-// --- 辅助组件 (InputDialog, PushDialog, FileEditor, GitCommit) ---
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 
 @Composable
 fun InputDialog(title: String, initialValue: String = "", onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
@@ -25,11 +21,28 @@ fun InputDialog(title: String, initialValue: String = "", onDismiss: () -> Unit,
 }
 
 @Composable
-fun PushDialog(onDismiss: () -> Unit, onConfirm: (String, String) -> Unit) {
-    var url by remember { mutableStateOf("") }; var token by remember { mutableStateOf("") }
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("推送") },
-        text = { Column { TextField(url, { url = it }, label = { Text("URL") }); TextField(token, { token = it }, label = { Text("Token") }) } },
-        confirmButton = { Button(onClick = { onConfirm(url, token) }) { Text("推送") } },
+fun PushDialog(onDismiss: () -> Unit, onConfirm: (String, String, String) -> Unit) {
+    var url by remember { mutableStateOf("") }
+    var user by remember { mutableStateOf("") }
+    var token by remember { mutableStateOf("") }
+
+    AlertDialog(onDismissRequest = onDismiss, title = { Text("配置远程同步") },
+        text = {
+            Column {
+                TextField(url, { url = it }, label = { Text("HTTPS 远程地址") })
+                Spacer(Modifier.height(8.dp))
+                TextField(user, { user = it }, label = { Text("用户名") })
+                Spacer(Modifier.height(8.dp))
+                TextField(token, { token = it }, label = { Text("Access Token / 密码") })
+            }
+        },
+        confirmButton = {
+            Button(onClick = {
+                if (url.isNotBlank() && user.isNotBlank() && token.isNotBlank()) {
+                    onConfirm(url, user, token)
+                }
+            }) { Text("开始同步") }
+        },
         dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
     )
 }

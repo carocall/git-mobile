@@ -155,12 +155,16 @@ fun FileExplorerScreen(onOpenFile: (File) -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FileEditorScreen(file: File, onBack: () -> Unit) {
-    // 读取文件内容
-    var text by remember { mutableStateOf(try { file.readText() } catch (e: Exception) { "" }) }
+    // 1. 检查是否为二进制文件
+    val isBinary = remember(file) { isBinaryFile(file) }
+
+    // 只有非二进制文件才读取文本
+    var text by remember {
+        mutableStateOf(if (!isBinary) (try { file.readText() } catch (e: Exception) { "" }) else "")
+    }
     var originalText by remember { mutableStateOf(text) }
     var showExitDialog by remember { mutableStateOf(false) }
 
-    // 撤销/重做栈 (限10步)
     val undoStack = remember { mutableStateListOf<String>() }
     val redoStack = remember { mutableStateListOf<String>() }
 
@@ -173,49 +177,65 @@ fun FileEditorScreen(file: File, onBack: () -> Unit) {
         }
     }
 
-    val isDirty = text != originalText
+    val isDirty = !isBinary && text != originalText
 
+    // 处理系统返回键
     BackHandler { if (isDirty) showExitDialog = true else onBack() }
 
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { },
+                title = { Text(file.name, style = MaterialTheme.typography.titleSmall) },
                 navigationIcon = {
                     IconButton(onClick = { if (isDirty) showExitDialog = true else onBack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
                     }
                 },
                 actions = {
-                    IconButton(onClick = {
-                        redoStack.add(text)
-                        text = undoStack.removeAt(undoStack.size - 1)
-                    }, enabled = undoStack.isNotEmpty()) { Icon(Icons.Default.Undo, "撤销") }
+                    // 如果是二进制文件，隐藏或禁用这些功能
+                    if (!isBinary) {
+                        IconButton(onClick = {
+                            redoStack.add(text)
+                            text = undoStack.removeAt(undoStack.size - 1)
+                        }, enabled = undoStack.isNotEmpty()) { Icon(Icons.Default.Undo, "撤销") }
 
-                    IconButton(onClick = {
-                        undoStack.add(text)
-                        text = redoStack.removeAt(redoStack.size - 1)
-                    }, enabled = redoStack.isNotEmpty()) { Icon(Icons.Default.Redo, "下一步") }
+                        IconButton(onClick = {
+                            undoStack.add(text)
+                            text = redoStack.removeAt(redoStack.size - 1)
+                        }, enabled = redoStack.isNotEmpty()) { Icon(Icons.Default.Redo, "下一步") }
 
-                    IconButton(onClick = {
-                        file.writeText(text)
-                        originalText = text
-                    }, enabled = isDirty) { Icon(Icons.Default.Save, "保存") }
+                        IconButton(onClick = {
+                            file.writeText(text)
+                            originalText = text
+                        }, enabled = isDirty) { Icon(Icons.Default.Save, "保存") }
+                    }
                 }
             )
         }
     ) { padding ->
-        TextField(
-            value = text,
-            onValueChange = { handleTextChange(it) },
-            modifier = Modifier.fillMaxSize().padding(padding),
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = Color.Transparent,
-                unfocusedContainerColor = Color.Transparent,
-                focusedIndicatorColor = Color.Transparent,
-                unfocusedIndicatorColor = Color.Transparent
+        if (isBinary) {
+            // 2. 二进制文件显示提示
+            Box(Modifier.fillMaxSize().padding(padding), Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Default.Warning, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.error)
+                    Spacer(Modifier.height(16.dp))
+                    Text("不支持二进制文件编辑", style = MaterialTheme.typography.bodyLarge)
+                }
+            }
+        } else {
+            // 3. 正常文本编辑器
+            TextField(
+                value = text,
+                onValueChange = { handleTextChange(it) },
+                modifier = Modifier.fillMaxSize().padding(padding),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color.Transparent,
+                    unfocusedContainerColor = Color.Transparent,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent
+                )
             )
-        )
+        }
 
         if (showExitDialog) {
             AlertDialog(
@@ -239,4 +259,22 @@ fun InputDialog(title: String, initialValue: String = "", onDismiss: () -> Unit,
         confirmButton = { Button(onClick = { if (name.isNotBlank()) { onConfirm(name); onDismiss() } }) { Text("确定") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
     )
+}
+
+fun isBinaryFile(file: File): Boolean {
+    if (!file.exists() || file.isDirectory) return false
+    return try {
+        file.inputStream().use { input ->
+            val buffer = ByteArray(1024)
+            val bytesRead = input.read(buffer)
+            if (bytesRead == -1) return false
+            // 检查前1024字节中是否包含 NULL 字节，这是判断二进制文件的标准做法
+            for (i in 0 until bytesRead) {
+                if (buffer[i] == 0.toByte()) return true
+            }
+            false
+        }
+    } catch (e: Exception) {
+        true
+    }
 }

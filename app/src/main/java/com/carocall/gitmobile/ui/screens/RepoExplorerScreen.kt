@@ -121,9 +121,9 @@ fun RepoExplorerScreen(repoRoot: File, onBackToRepos: () -> Unit, onOpenFile: (F
         },
         floatingActionButton = {
             Column(horizontalAlignment = Alignment.End) {
-                SmallFloatingActionButton(onClick = { importLauncher.launch("*/*") }, modifier = Modifier.padding(bottom = 8.dp)) { Icon(Icons.Default.UploadFile, null) }
-                SmallFloatingActionButton(onClick = { showCreateDialog = true }, modifier = Modifier.padding(bottom = 8.dp)) { Icon(Icons.Default.CreateNewFolder, null) }
-                SmallFloatingActionButton(onClick = { showCreateDialog = false }) { Icon(Icons.Default.Add, null) }
+                FloatingActionButton(onClick = { importLauncher.launch("*/*") }, modifier = Modifier.padding(bottom = 8.dp)) { Icon(Icons.Default.UploadFile, null) }
+                FloatingActionButton(onClick = { showCreateDialog = true }, modifier = Modifier.padding(bottom = 8.dp)) { Icon(Icons.Default.CreateNewFolder, null) }
+                FloatingActionButton(onClick = { showCreateDialog = false }) { Icon(Icons.Default.Add, null) }
             }
         }
     ) { padding ->

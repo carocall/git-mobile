@@ -56,11 +56,11 @@ fun RepoListScreen(onOpenRepo: (File) -> Unit) {
         topBar = { CenterAlignedTopAppBar(title = { Text("我的仓库") }) },
         floatingActionButton = {
             Column(horizontalAlignment = Alignment.End) {
-                SmallFloatingActionButton(
+                FloatingActionButton(
                     onClick = { showCloneDialog = true },
                     modifier = Modifier.padding(bottom = 8.dp)
                 ) { Icon(Icons.Default.CloudDownload, "克隆仓库") }
-                SmallFloatingActionButton(onClick = { showCreateDialog = true }) { Icon(Icons.Default.Add, "创建仓库") }
+                FloatingActionButton(onClick = { showCreateDialog = true }) { Icon(Icons.Default.Add, "创建仓库") }
             }
         }
     ) { padding ->

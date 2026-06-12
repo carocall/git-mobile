@@ -22,26 +22,58 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavType
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import java.io.File
 import java.io.FileOutputStream
+import java.net.URLDecoder
+import java.net.URLEncoder
 
+/**
+ * 导航入口
+ */
 @Composable
 fun MainApp() {
-    // 简单的导航状态：null 表示在浏览器，非 null 表示正在编辑该文件
-    var editingFile by remember { mutableStateOf<File?>(null) }
+    val navController = rememberNavController()
 
-    if (editingFile == null) {
-        FileExplorerScreen(onOpenFile = { editingFile = it })
-    } else {
-        FileEditorScreen(file = editingFile!!, onBack = { editingFile = null })
+    NavHost(navController = navController, startDestination = "explorer") {
+        // 1. 文件浏览器页面
+        composable("explorer") {
+            FileExplorerScreen(onOpenFile = { file ->
+                // 路径编码处理，防止特殊字符干扰路由
+                val encodedPath = URLEncoder.encode(file.absolutePath, "UTF-8")
+                navController.navigate("editor/$encodedPath")
+            })
+        }
+
+        // 2. 文件编辑器页面
+        composable(
+            route = "editor/{filePath}",
+            arguments = listOf(navArgument("filePath") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val encodedPath = backStackEntry.arguments?.getString("filePath") ?: ""
+            val filePath = URLDecoder.decode(encodedPath, "UTF-8")
+            FileEditorScreen(
+                file = File(filePath),
+                onBack = { navController.popBackStack() }
+            )
+        }
     }
 }
 
+/**
+ * 文件浏览器
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FileExplorerScreen(onOpenFile: (File) -> Unit) {
     val context = LocalContext.current
     val rootDir = remember { context.filesDir }
+
+    // 关键：状态保存在此 Composable 中，Navigation 返回时会自动恢复
     var currentDir by remember { mutableStateOf(rootDir) }
     var files by remember { mutableStateOf(currentDir.listFiles()?.toList() ?: emptyList()) }
 
@@ -57,6 +89,7 @@ fun FileExplorerScreen(onOpenFile: (File) -> Unit) {
         ) ?: emptyList()
     }
 
+    // 导入文件
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let { selectedUri ->
             val contentResolver = context.contentResolver
@@ -87,7 +120,7 @@ fun FileExplorerScreen(onOpenFile: (File) -> Unit) {
                         }
                     }
                 },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+
             )
         },
         floatingActionButton = {
@@ -119,17 +152,18 @@ fun FileExplorerScreen(onOpenFile: (File) -> Unit) {
                                 DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
                                     DropdownMenuItem(text = { Text("重命名") }, onClick = { menuExpanded = false; selectedFile = file; showRenameDialog = true }, leadingIcon = { Icon(Icons.Default.Edit, null) })
                                     DropdownMenuItem(text = { Text("删除") }, onClick = { menuExpanded = false; selectedFile = file; showDeleteDialog = true }, leadingIcon = { Icon(Icons.Default.Delete, null) })
+                                    DropdownMenuItem(text = { Text("复制 (暂不可用)") }, onClick = { menuExpanded = false }, leadingIcon = { Icon(Icons.Default.ContentCopy, null) })
+                                    DropdownMenuItem(text = { Text("剪切 (暂不可用)") }, onClick = { menuExpanded = false }, leadingIcon = { Icon(Icons.Default.ContentCut, null) })
                                 }
                             }
                         },
-                        modifier = Modifier.clickable {
-                            if (file.isDirectory) currentDir = file else onOpenFile(file)
-                        }
+                        modifier = Modifier.clickable { if (file.isDirectory) currentDir = file else onOpenFile(file) }
                     )
                 }
             }
         }
-        // ... 对话框逻辑 (InputDialog, DeleteDialog) 与之前一致 ...
+
+        // 对话框逻辑
         if (showCreateDialog) {
             InputDialog(title = "创建${if (isFolder) "文件夹" else "文件"}", onDismiss = { showCreateDialog = false }, onConfirm = { name ->
                 val f = File(currentDir, name)
@@ -152,19 +186,18 @@ fun FileExplorerScreen(onOpenFile: (File) -> Unit) {
     }
 }
 
+/**
+ * 文件编辑器
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FileEditorScreen(file: File, onBack: () -> Unit) {
-    // 1. 检查是否为二进制文件
     val isBinary = remember(file) { isBinaryFile(file) }
-
-    // 只有非二进制文件才读取文本
-    var text by remember {
-        mutableStateOf(if (!isBinary) (try { file.readText() } catch (e: Exception) { "" }) else "")
-    }
+    var text by remember { mutableStateOf(if (!isBinary) (try { file.readText() } catch (e: Exception) { "" }) else "") }
     var originalText by remember { mutableStateOf(text) }
     var showExitDialog by remember { mutableStateOf(false) }
 
+    // 撤销/重做栈 (限10步)
     val undoStack = remember { mutableStateListOf<String>() }
     val redoStack = remember { mutableStateListOf<String>() }
 
@@ -179,7 +212,6 @@ fun FileEditorScreen(file: File, onBack: () -> Unit) {
 
     val isDirty = !isBinary && text != originalText
 
-    // 处理系统返回键
     BackHandler { if (isDirty) showExitDialog = true else onBack() }
 
     Scaffold(
@@ -192,7 +224,6 @@ fun FileEditorScreen(file: File, onBack: () -> Unit) {
                     }
                 },
                 actions = {
-                    // 如果是二进制文件，隐藏或禁用这些功能
                     if (!isBinary) {
                         IconButton(onClick = {
                             redoStack.add(text)
@@ -214,16 +245,14 @@ fun FileEditorScreen(file: File, onBack: () -> Unit) {
         }
     ) { padding ->
         if (isBinary) {
-            // 2. 二进制文件显示提示
             Box(Modifier.fillMaxSize().padding(padding), Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.Warning, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.error)
+                    Icon(Icons.Default.Warning, null, Modifier.size(48.dp), tint = MaterialTheme.colorScheme.error)
                     Spacer(Modifier.height(16.dp))
-                    Text("不支持二进制文件编辑", style = MaterialTheme.typography.bodyLarge)
+                    Text("不支持二进制文件编辑")
                 }
             }
         } else {
-            // 3. 正常文本编辑器
             TextField(
                 value = text,
                 onValueChange = { handleTextChange(it) },
@@ -249,6 +278,27 @@ fun FileEditorScreen(file: File, onBack: () -> Unit) {
     }
 }
 
+/**
+ * 辅助函数：判断是否为二进制文件
+ */
+fun isBinaryFile(file: File): Boolean {
+    if (!file.exists() || file.isDirectory) return false
+    return try {
+        file.inputStream().use { input ->
+            val buffer = ByteArray(1024)
+            val bytesRead = input.read(buffer)
+            if (bytesRead <= 0) return false
+            for (i in 0 until bytesRead) {
+                if (buffer[i] == 0.toByte()) return true
+            }
+            false
+        }
+    } catch (e: Exception) { true }
+}
+
+/**
+ * 通用输入对话框
+ */
 @Composable
 fun InputDialog(title: String, initialValue: String = "", onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
     var name by remember { mutableStateOf(initialValue) }
@@ -259,22 +309,4 @@ fun InputDialog(title: String, initialValue: String = "", onDismiss: () -> Unit,
         confirmButton = { Button(onClick = { if (name.isNotBlank()) { onConfirm(name); onDismiss() } }) { Text("确定") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
     )
-}
-
-fun isBinaryFile(file: File): Boolean {
-    if (!file.exists() || file.isDirectory) return false
-    return try {
-        file.inputStream().use { input ->
-            val buffer = ByteArray(1024)
-            val bytesRead = input.read(buffer)
-            if (bytesRead == -1) return false
-            // 检查前1024字节中是否包含 NULL 字节，这是判断二进制文件的标准做法
-            for (i in 0 until bytesRead) {
-                if (buffer[i] == 0.toByte()) return true
-            }
-            false
-        }
-    } catch (e: Exception) {
-        true
-    }
 }

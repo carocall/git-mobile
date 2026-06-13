@@ -1,8 +1,6 @@
 package com.carocall.gitmobile.ui.screens
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -10,13 +8,13 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextIndent
@@ -24,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.carocall.gitmobile.utils.isBinaryFile
+import com.carocall.gitmobile.utils.openFileExternally
 import java.io.File
 
 /**
@@ -78,12 +77,13 @@ fun NovelEditor(file: File, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text(file.name, fontSize = 14.sp) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) } },
+                title = { Text(file.name, fontSize = 14.sp, color = if (bgColor == Color(0xFF1A1A1A)) Color.White else Color.Black) },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = if (bgColor == Color(0xFF1A1A1A)) Color.White else Color.Black) } },
                 actions = {
-                    IconButton(onClick = { showSettings = true }) { Icon(Icons.Default.Settings, null) }
-                    IconButton(onClick = { file.writeText(text); original = text }, enabled = text != original) { Icon(Icons.Default.Save, null) }
-                }
+                    IconButton(onClick = { showSettings = true }) { Icon(Icons.Default.Settings, null, tint = if (bgColor == Color(0xFF1A1A1A)) Color.White else Color.Black) }
+                    IconButton(onClick = { file.writeText(text); original = text }, enabled = text != original) { Icon(Icons.Default.Save, null, tint = if (bgColor == Color(0xFF1A1A1A)) Color.White else Color.Black) }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = bgColor)
             )
         }
     ) { padding ->
@@ -141,6 +141,7 @@ fun CodeEditor(file: File, onBack: () -> Unit) {
     var text by remember { mutableStateOf(file.readText()) }
     var original by remember { mutableStateOf(text) }
     val lines = text.lines()
+    val horizontalScrollState = rememberScrollState()
 
     Scaffold(
         topBar = {
@@ -161,18 +162,20 @@ fun CodeEditor(file: File, onBack: () -> Unit) {
                 }
             }
             
-            TextField(
-                value = text,
-                onValueChange = { text = it },
-                modifier = Modifier.fillMaxSize(),
-                textStyle = TextStyle(fontSize = 14.sp, fontFamily = FontFamily.Monospace, lineHeight = 20.sp),
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Color.Transparent,
-                    unfocusedContainerColor = Color.Transparent,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent
+            Box(Modifier.fillMaxSize().horizontalScroll(horizontalScrollState)) {
+                TextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    modifier = Modifier.fillMaxHeight().width(2000.dp), // 使用较大宽度模拟不换行
+                    textStyle = TextStyle(fontSize = 14.sp, fontFamily = FontFamily.Monospace, lineHeight = 20.sp),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent
+                    )
                 )
-            )
+            }
         }
     }
 }
@@ -217,14 +220,12 @@ fun ImageViewer(file: File, onBack: () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BinaryInfoViewer(file: File, onBack: () -> Unit) {
+    val context = LocalContext.current
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text(file.name, fontSize = 14.sp) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) } },
-                actions = {
-                    IconButton(onClick = { /* TODO: Share */ }) { Icon(Icons.Default.Share, null) }
-                }
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) } }
             )
         }
     ) { padding ->
@@ -236,7 +237,7 @@ fun BinaryInfoViewer(file: File, onBack: () -> Unit) {
                 Text("后缀: ${file.extension}", color = Color.Gray)
                 Text("大小: ${file.length() / 1024} KB", color = Color.Gray)
                 Spacer(Modifier.height(24.dp))
-                Button(onClick = { /* TODO: Open in System */ }) {
+                Button(onClick = { openFileExternally(context, file) }) {
                     Text("使用系统应用打开")
                 }
             }

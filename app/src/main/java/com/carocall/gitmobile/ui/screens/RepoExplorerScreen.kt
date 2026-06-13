@@ -14,12 +14,18 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Article
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Source
 import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material3.Badge
@@ -139,9 +145,30 @@ fun RepoExplorerScreen(repoRoot: File, onBackToRepos: () -> Unit, onOpenFile: (F
                         else -> MaterialTheme.colorScheme.onSurface
                     }
 
+                    val fileIcon = when {
+                        file.isDirectory -> Icons.Default.Folder
+                        file.extension.lowercase() == "txt" -> Icons.AutoMirrored.Filled.Article
+                        file.extension.lowercase() in listOf("jpg", "jpeg", "png", "webp", "gif", "bmp") -> Icons.Default.Image
+                        file.extension.lowercase() in listOf("mp4", "mkv", "mov", "webm") -> Icons.Default.Movie
+                        file.extension.lowercase() in listOf("mp3", "wav", "flac") -> Icons.Default.Audiotrack
+                        file.extension.lowercase() == "pdf" -> Icons.Default.PictureAsPdf
+                        file.extension.lowercase() in listOf("java", "kt", "py", "md", "xml", "json", "yaml", "toml", "properties", "gradle", "kts", "c", "cpp", "h", "js", "ts", "sh") -> Icons.Default.Code
+                        else -> Icons.Default.Description
+                    }
+
+                    val iconTint = when {
+                        file.isDirectory -> MaterialTheme.colorScheme.primary
+                        fileIcon == Icons.Default.Code -> Color(0xFF673AB7) // 紫色表示代码
+                        fileIcon == Icons.Default.Image -> Color(0xFFE91E63) // 粉红表示图片
+                        fileIcon == Icons.Default.Movie -> Color(0xFFFF9800) // 橙色表示视频
+                        fileIcon == Icons.Default.Audiotrack -> Color(0xFF00BCD4) // 青色表示音频
+                        fileIcon == Icons.AutoMirrored.Filled.Article -> Color(0xFF4CAF50) // 绿色表示小说/文本
+                        else -> Color.Gray
+                    }
+
                     ListItem(
                         headlineContent = { Text(file.name, color = color) },
-                        leadingContent = { Icon(if (file.isDirectory) Icons.Default.Folder else Icons.Default.Description, null, tint = if (file.isDirectory) MaterialTheme.colorScheme.primary else Color.Gray) },
+                        leadingContent = { Icon(fileIcon, null, tint = iconTint) },
                         trailingContent = {
                             var menuOpen by remember { mutableStateOf(false) }
                             Box {

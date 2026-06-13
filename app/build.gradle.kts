@@ -59,6 +59,9 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.navigation:navigation-compose:2.8.5") // 请使用最新稳定版
     implementation(libs.coil.compose)
+    implementation(libs.androidx.media3.exoplayer)
+    implementation(libs.androidx.media3.ui)
+    implementation(libs.androidx.media3.common)
     // JGit 核心库
     implementation("org.eclipse.jgit:org.eclipse.jgit:6.10.0.202406032230-r")
 

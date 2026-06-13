@@ -20,6 +20,10 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextIndent
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.common.MediaItem
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
 import com.carocall.gitmobile.utils.isBinaryFile
 import com.carocall.gitmobile.utils.openFileExternally
@@ -45,7 +49,7 @@ fun FileEditorScreen(file: File, onBack: () -> Unit) {
             ImageViewer(file, onBack)
             
         // 4. 音视频预览 (架构占位)
-        ext in listOf("mp4", "mkv", "mov", "mp3", "wav", "flac") ->
+        ext in listOf("mp4", "mkv", "mov", "webm", "mp3", "wav", "flac") ->
             MediaViewer(file, onBack)
             
         // 5. 其他
@@ -245,11 +249,26 @@ fun BinaryInfoViewer(file: File, onBack: () -> Unit) {
     }
 }
 
-// --- 5. 音视频查看器 (占位) ---
+// --- 5. 音视频查看器 (真实播放器) ---
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MediaViewer(file: File, onBack: () -> Unit) {
+    val context = LocalContext.current
+    val exoPlayer = remember {
+        ExoPlayer.Builder(context).build().apply {
+            val mediaItem = MediaItem.fromUri(file.absolutePath)
+            setMediaItem(mediaItem)
+            prepare()
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            exoPlayer.release()
+        }
+    }
+
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -258,19 +277,23 @@ fun MediaViewer(file: File, onBack: () -> Unit) {
             )
         }
     ) { padding ->
-        Box(Modifier.padding(padding).fillMaxSize(), contentAlignment = Alignment.Center) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(Icons.Default.PlayCircle, null, modifier = Modifier.size(80.dp), tint = MaterialTheme.colorScheme.primary)
-                Spacer(Modifier.height(16.dp))
-                Text("媒体播放器", style = MaterialTheme.typography.titleLarge)
-                Text("即将支持：${file.extension.uppercase()} 格式播放", color = Color.Gray)
-                Spacer(Modifier.height(32.dp))
-                Card(Modifier.padding(16.dp)) {
-                    Column(Modifier.padding(16.dp)) {
-                        Text("文件信息", style = MaterialTheme.typography.titleSmall)
-                        Text("路径: ${file.absolutePath}", fontSize = 12.sp, color = Color.Gray)
-                        Text("大小: ${file.length() / 1024 / 1024} MB", fontSize = 12.sp, color = Color.Gray)
-                    }
+        Column(Modifier.padding(padding).fillMaxSize()) {
+            Box(Modifier.weight(1f).fillMaxWidth().background(Color.Black), contentAlignment = Alignment.Center) {
+                AndroidView(
+                    factory = { ctx ->
+                        PlayerView(ctx).apply {
+                            player = exoPlayer
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+            Card(Modifier.fillMaxWidth().padding(16.dp)) {
+                Column(Modifier.padding(16.dp)) {
+                    Text("媒体信息", style = MaterialTheme.typography.titleSmall)
+                    Spacer(Modifier.height(8.dp))
+                    Text("类型: ${file.extension.uppercase()}", fontSize = 12.sp, color = Color.Gray)
+                    Text("大小: ${file.length() / 1024 / 1024} MB", fontSize = 12.sp, color = Color.Gray)
                 }
             }
         }

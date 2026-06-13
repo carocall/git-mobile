@@ -3,13 +3,16 @@ package com.carocall.gitmobile.ui.screens
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Upload
@@ -49,6 +52,14 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
     var remoteConfig by remember { mutableStateOf(Triple("", "", "")) }
     var menuExpanded by remember { mutableStateOf(false) }
 
+    // 查看提交变更的状态
+    var selectedCommit by remember { mutableStateOf<CommitInfo?>(null) }
+    var commitChanges by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
+    var selectedDiffFile by remember { mutableStateOf<String?>(null) }
+    var fileDiffContent by remember { mutableStateOf("") }
+    var showChangesDialog by remember { mutableStateOf(false) }
+    var showDiffDialog by remember { mutableStateOf(false) }
+
     fun refresh() {
         scope.launch {
             status = GitManager.getStatus(repoRoot)
@@ -61,6 +72,26 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
     }
 
     LaunchedEffect(Unit) { refresh() }
+
+    fun viewCommitChanges(commit: CommitInfo) {
+        scope.launch {
+            isLoading = true
+            selectedCommit = commit
+            commitChanges = GitManager.getCommitChanges(repoRoot, commit.id)
+            showChangesDialog = true
+            isLoading = false
+        }
+    }
+
+    fun viewFileDiff(commitId: String, filePath: String) {
+        scope.launch {
+            isLoading = true
+            selectedDiffFile = filePath
+            fileDiffContent = GitManager.getFileDiff(repoRoot, commitId, filePath)
+            showDiffDialog = true
+            isLoading = false
+        }
+    }
 
     fun withRemoteConfig(action: (String, String, String) -> Unit) {
         scope.launch {
@@ -126,66 +157,76 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") }
                 },
                 actions = {
-                    Box {
-                        IconButton(onClick = { menuExpanded = true }) { Icon(Icons.Default.MoreVert, "更多") }
-                        DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
-                            DropdownMenuItem(
-                                text = { Text("拉取 (Pull)") },
-                                leadingIcon = { Icon(Icons.Default.Download, null) },
-                                onClick = { menuExpanded = false; withRemoteConfig { _, u, t -> performPull(u, t) } }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("推送 (Push)") },
-                                leadingIcon = { Icon(Icons.Default.Upload, null) },
-                                onClick = { menuExpanded = false; withRemoteConfig { _, u, t -> performPush(u, t) } }
-                            )
-                            HorizontalDivider()
-                            DropdownMenuItem(
-                                text = { Text("远程设置") },
-                                leadingIcon = { Icon(Icons.Default.Settings, null) },
-                                onClick = {
-                                    scope.launch {
-                                        remoteConfig = GitManager.getRemoteConfig(repoRoot)
-                                        menuExpanded = false
-                                        showConfigDialog = true
-                                    }
-                                }
-                            )
+                    IconButton(onClick = {
+                        scope.launch {
+                            remoteConfig = GitManager.getRemoteConfig(repoRoot)
+                            showConfigDialog = true
                         }
-                    }
+                    }) { Icon(Icons.Default.Settings, "远程设置") }
                 }
             )
         }
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
+            // 顶部操作栏：拉取、同步、推送
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            ) {
+                Row(
+                    modifier = Modifier.padding(8.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    TextButton(onClick = { withRemoteConfig { _, u, t -> performPull(u, t) } }) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Default.Download, null)
+                            Text("拉取", fontSize = 12.sp)
+                        }
+                    }
+                    TextButton(onClick = { withRemoteConfig { url, u, t -> performSync(url, u, t) } }) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Default.Sync, null)
+                            Text("一键同步", fontSize = 12.sp)
+                        }
+                    }
+                    TextButton(onClick = { withRemoteConfig { _, u, t -> performPush(u, t) } }) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Default.Upload, null)
+                            Text("推送", fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+
+            HorizontalDivider()
+
             OutlinedTextField(
                 value = commitMessage,
                 onValueChange = { commitMessage = it },
                 placeholder = { Text("提交变更内容...") },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                maxLines = 3
+                maxLines = 3,
+                trailingIcon = {
+                    if (commitMessage.isNotBlank()) {
+                        IconButton(onClick = {
+                            scope.launch {
+                                GitManager.commit(repoRoot, commitMessage, selectedFiles.toList())
+                                    .onSuccess { commitMessage = ""; selectedFiles = emptySet(); refresh() }
+                            }
+                        }) {
+                            Icon(Icons.Default.Check, "提交", tint = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                }
             )
 
-            Button(
-                onClick = {
-                    if (commitMessage.isNotBlank()) {
-                        scope.launch {
-                            GitManager.commit(repoRoot, commitMessage, selectedFiles.toList())
-                                .onSuccess { commitMessage = ""; selectedFiles = emptySet(); refresh() }
-                        }
-                    } else {
-                        withRemoteConfig { url, u, t -> performSync(url, u, t) }
-                    }
-                },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                shape = MaterialTheme.shapes.extraSmall,
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.onSecondaryContainer)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(if (commitMessage.isNotBlank()) Icons.Default.Sync else Icons.Default.Sync, null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text(if (commitMessage.isNotBlank()) "提交" else "同步更改 ${if(status.allChanges.isNotEmpty()) status.allChanges.size else ""}")
-                }
+            if (commitMessage.isNotBlank()) {
+                Text(
+                    "提示：点击输入框右侧图标提交本地变更",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.Gray,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
             }
 
             LazyColumn(Modifier.fillMaxSize()) {
@@ -236,10 +277,59 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
                             }
                         },
                         supportingContent = { Text("${commit.author} • ${SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date(commit.time))}") },
-                        trailingContent = { Text(commit.id, fontSize = 11.sp, color = Color.Gray) }
+                        trailingContent = { Text(commit.id.take(7), fontSize = 11.sp, color = Color.Gray) },
+                        modifier = Modifier.clickable { viewCommitChanges(commit) }
                     )
                 }
             }
+        }
+
+        if (showChangesDialog) {
+            AlertDialog(
+                onDismissRequest = { showChangesDialog = false },
+                title = { Text("提交变更 - ${selectedCommit?.message?.take(20)}...") },
+                text = {
+                    LazyColumn(Modifier.heightIn(max = 400.dp)) {
+                        items(commitChanges) { (path, type) ->
+                            ListItem(
+                                headlineContent = { Text(path, fontSize = 14.sp) },
+                                trailingContent = { Text(type.take(1), fontWeight = FontWeight.Bold, color = if(type == "ADD") Color(0xFF4CAF50) else Color(0xFFE91E63)) },
+                                modifier = Modifier.clickable { viewFileDiff(selectedCommit!!.id, path) }
+                            )
+                        }
+                    }
+                },
+                confirmButton = { TextButton(onClick = { showChangesDialog = false }) { Text("关闭") } }
+            )
+        }
+
+        if (showDiffDialog) {
+            AlertDialog(
+                onDismissRequest = { showDiffDialog = false },
+                title = { Text("变更详情: ${selectedDiffFile?.substringAfterLast("/")}") },
+                text = {
+                    Box(Modifier.heightIn(max = 500.dp).verticalScroll(rememberScrollState()).horizontalScroll(rememberScrollState())) {
+                        Column {
+                            fileDiffContent.lines().forEach { line ->
+                                val color = when {
+                                    line.startsWith("+") && !line.startsWith("+++") -> Color(0xFF4CAF50)
+                                    line.startsWith("-") && !line.startsWith("---") -> Color(0xFFE91E63)
+                                    line.startsWith("@@") -> Color(0xFF2196F3)
+                                    else -> MaterialTheme.colorScheme.onSurface
+                                }
+                                Text(
+                                    line,
+                                    color = color,
+                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                    fontSize = 12.sp,
+                                    modifier = Modifier.padding(horizontal = 4.dp)
+                                )
+                            }
+                        }
+                    }
+                },
+                confirmButton = { TextButton(onClick = { showDiffDialog = false }) { Text("关闭") } }
+            )
         }
 
         if (showConfigDialog) {

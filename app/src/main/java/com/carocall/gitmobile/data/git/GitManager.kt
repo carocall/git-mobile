@@ -144,7 +144,7 @@ object GitManager {
                 val log = git.log().setMaxCount(20).call()
                 log.map { rev ->
                     CommitInfo(
-                        id = rev.name.take(7),
+                        id = rev.name, // 使用全量 ID
                         author = rev.authorIdent.name,
                         message = rev.shortMessage,
                         time = rev.commitTime.toLong() * 1000,
@@ -153,5 +153,57 @@ object GitManager {
                 }
             }
         } catch (e: Exception) { emptyList() }
+    }
+
+    // 获取某个提交的变更文件列表
+    suspend fun getCommitChanges(repoRoot: File, commitId: String): List<Pair<String, String>> = withContext(Dispatchers.IO) {
+        try {
+            Git.open(repoRoot).use { git ->
+                val repository = git.repository
+                val objectId = repository.resolve(commitId)
+                val revWalk = org.eclipse.jgit.revwalk.RevWalk(repository)
+                val commit = revWalk.parseCommit(objectId)
+                val parent = if (commit.parentCount > 0) revWalk.parseCommit(commit.getParent(0).id) else null
+                
+                val df = org.eclipse.jgit.diff.DiffFormatter(java.io.ByteArrayOutputStream())
+                df.setRepository(repository)
+                val diffs = if (parent != null) {
+                    df.scan(parent.tree, commit.tree)
+                } else {
+                    // 第一个提交，与空树比较
+                    df.scan(org.eclipse.jgit.treewalk.EmptyTreeIterator(), org.eclipse.jgit.treewalk.CanonicalTreeParser(null, repository.newObjectReader(), commit.tree))
+                }
+                
+                diffs.map { diff ->
+                    val path = if (diff.changeType == org.eclipse.jgit.diff.DiffEntry.ChangeType.DELETE) diff.oldPath else diff.newPath
+                    path to diff.changeType.name
+                }
+            }
+        } catch (e: Exception) { emptyList() }
+    }
+
+    // 获取某个文件在某个提交中的 Diff
+    suspend fun getFileDiff(repoRoot: File, commitId: String, filePath: String): String = withContext(Dispatchers.IO) {
+        try {
+            Git.open(repoRoot).use { git ->
+                val repository = git.repository
+                val objectId = repository.resolve(commitId)
+                val revWalk = org.eclipse.jgit.revwalk.RevWalk(repository)
+                val commit = revWalk.parseCommit(objectId)
+                val parent = if (commit.parentCount > 0) revWalk.parseCommit(commit.getParent(0).id) else null
+                
+                val out = java.io.ByteArrayOutputStream()
+                org.eclipse.jgit.diff.DiffFormatter(out).use { df ->
+                    df.setRepository(repository)
+                    df.setPathFilter(org.eclipse.jgit.treewalk.filter.PathFilter.create(filePath))
+                    if (parent != null) {
+                        df.format(parent.tree, commit.tree)
+                    } else {
+                        df.format(org.eclipse.jgit.treewalk.EmptyTreeIterator(), org.eclipse.jgit.treewalk.CanonicalTreeParser(null, repository.newObjectReader(), commit.tree))
+                    }
+                }
+                out.toString("UTF-8")
+            }
+        } catch (e: Exception) { "无法获取 Diff" }
     }
 }

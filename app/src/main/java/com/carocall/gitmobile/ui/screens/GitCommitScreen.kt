@@ -338,7 +338,13 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
                         Row(Modifier.fillMaxWidth().clickable { selectedFiles = if (selectedFiles.contains(path)) selectedFiles - path else selectedFiles + path }.padding(16.dp, 8.dp), verticalAlignment = Alignment.CenterVertically) {
                             Checkbox(checked = selectedFiles.contains(path), onCheckedChange = { selectedFiles = if (it) selectedFiles + path else selectedFiles - path })
                             Text(path, modifier = Modifier.weight(1f), fontSize = 14.sp)
-                            Text(type.take(1), color = if (type == "Untracked") Color(0xFF4CAF50) else Color(0xFF2196F3), fontWeight = FontWeight.Bold)
+                            val color = when (type) {
+                                "Untracked" -> Color(0xFF4CAF50) // 绿色
+                                "Added" -> Color(0xFF4CAF50)     // 绿色
+                                "Removed" -> Color(0xFFE91E63)   // 红色
+                                else -> Color(0xFF2196F3)        // 蓝色 (Modified)
+                            }
+                            Text(type.take(1), color = color, fontWeight = FontWeight.Bold)
                         }
                     }
                 }

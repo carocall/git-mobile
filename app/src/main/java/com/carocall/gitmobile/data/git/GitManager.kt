@@ -24,7 +24,10 @@ object GitManager {
             Git.open(repoRoot).use { git ->
                 val s = git.status().call()
                 val branch = git.repository.branch
-                RepoStatus(branch, s.untracked, s.modified, s.added, s.removed)
+                // removed: 已经加入暂存区的删除
+                // missing: 工作区已删除但未加入暂存区
+                val allRemoved = s.removed + s.missing
+                RepoStatus(branch, s.untracked, s.modified, s.added, allRemoved)
             }
         } catch (e: Exception) { RepoStatus() }
     }
@@ -32,13 +35,26 @@ object GitManager {
     suspend fun commit(repoRoot: File, message: String, files: List<String>): Result<String> = withContext(Dispatchers.IO) {
         try {
             Git.open(repoRoot).use { git ->
-                val add = git.add()
                 if (files.isEmpty()) {
-                    add.addFilepattern(".")
+                    // 提交所有变更，包含新增、修改和删除
+                    git.add().addFilepattern(".").call() // 处理新增和修改
+                    git.add().addFilepattern(".").setUpdate(true).call() // 处理修改和删除
                 } else {
-                    files.forEach { add.addFilepattern(it) }
+                    // 针对选中的文件处理
+                    for (path in files) {
+                        val file = File(repoRoot, path)
+                        if (file.exists()) {
+                            git.add().addFilepattern(path).call()
+                        } else {
+                            // 文件不存在，说明是删除操作，需要从索引中移除
+                            try {
+                                git.rm().addFilepattern(path).call()
+                            } catch (e: Exception) {
+                                // 如果文件从未被 track 过就删除了，rm 会报错，这里忽略即可
+                            }
+                        }
+                    }
                 }
-                add.call()
                 git.commit().setMessage(message).call()
                 Result.success("提交成功")
             }

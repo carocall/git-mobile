@@ -3,6 +3,7 @@ package com.carocall.gitmobile.data.model
 // --- 数据模型 ---
 
 data class RepoStatus(
+    val branch: String = "unknown",
     val untracked: Set<String> = emptySet(),
     val modified: Set<String> = emptySet(),
     val added: Set<String> = emptySet(),

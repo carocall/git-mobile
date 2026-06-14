@@ -13,7 +13,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.*
@@ -50,7 +49,7 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
     var isLoading by remember { mutableStateOf(false) }
     var showConfigDialog by remember { mutableStateOf(false) }
     var remoteConfig by remember { mutableStateOf(Triple("", "", "")) }
-    var menuExpanded by remember { mutableStateOf(false) }
+    var selectedTabIndex by remember { mutableIntStateOf(0) }
 
     // 查看提交变更的状态
     var selectedCommit by remember { mutableStateOf<CommitInfo?>(null) }
@@ -64,6 +63,7 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
         scope.launch {
             status = GitManager.getStatus(repoRoot)
             history = GitManager.getHistory(repoRoot)
+            remoteConfig = GitManager.getRemoteConfig(repoRoot)
             // 只有当 selectedFiles 为空时才默认全选
             if (selectedFiles.isEmpty() && status.allChanges.isNotEmpty()) {
                 selectedFiles = status.allChanges.map { it.first }.toSet()
@@ -155,26 +155,93 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
                 title = { Text("源代码管理") },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") }
-                },
-                actions = {
-                    IconButton(onClick = {
-                        scope.launch {
-                            remoteConfig = GitManager.getRemoteConfig(repoRoot)
-                            showConfigDialog = true
-                        }
-                    }) { Icon(Icons.Default.Settings, "远程设置") }
                 }
             )
         }
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
-            // 顶部操作栏：拉取、同步、推送
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            // 远程仓库信息卡片
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+                    .clickable {
+                        scope.launch {
+                            remoteConfig = GitManager.getRemoteConfig(repoRoot)
+                            showConfigDialog = true
+                        }
+                    },
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                )
             ) {
+                Column(Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                text = "远程仓库",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = if (remoteConfig.first.isNotBlank()) {
+                                    val name = remoteConfig.first.substringAfterLast("/").substringBefore(".git")
+                                    if (name.isBlank()) "Git Remote" else name
+                                } else "未配置同步地址",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        if (remoteConfig.first.isNotBlank()) {
+                            Surface(
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                                shape = MaterialTheme.shapes.extraSmall
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        Icons.Default.Check,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(14.dp),
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(
+                                        "已连接",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    
+                    Spacer(Modifier.height(12.dp))
+                    
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.Sync,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = status.branch,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+
+            // 操作栏：拉取、同步、推送
+            if (remoteConfig.first.isNotBlank()) {
                 Row(
-                    modifier = Modifier.padding(8.dp),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
                     TextButton(onClick = { withRemoteConfig { _, u, t -> performPull(u, t) } }) {
@@ -196,90 +263,109 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
                         }
                     }
                 }
+                HorizontalDivider()
             }
 
-            HorizontalDivider()
-
-            OutlinedTextField(
-                value = commitMessage,
-                onValueChange = { commitMessage = it },
-                placeholder = { Text("提交变更内容...") },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                maxLines = 3,
-                trailingIcon = {
-                    if (commitMessage.isNotBlank()) {
-                        IconButton(onClick = {
-                            scope.launch {
-                                GitManager.commit(repoRoot, commitMessage, selectedFiles.toList())
-                                    .onSuccess { commitMessage = ""; selectedFiles = emptySet(); refresh() }
-                            }
-                        }) {
-                            Icon(Icons.Default.Check, "提交", tint = MaterialTheme.colorScheme.primary)
-                        }
-                    }
-                }
-            )
-
-            if (commitMessage.isNotBlank()) {
-                Text(
-                    "提示：点击输入框右侧图标提交本地变更",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color.Gray,
-                    modifier = Modifier.padding(horizontal = 16.dp)
+            TabRow(
+                selectedTabIndex = selectedTabIndex,
+                containerColor = Color.Transparent,
+                divider = {}
+            ) {
+                Tab(
+                    selected = selectedTabIndex == 0,
+                    onClick = { selectedTabIndex = 0 },
+                    text = { Text("待提交变更", style = MaterialTheme.typography.titleSmall) }
+                )
+                Tab(
+                    selected = selectedTabIndex == 1,
+                    onClick = { selectedTabIndex = 1 },
+                    text = { Text("最近提交历史", style = MaterialTheme.typography.titleSmall) }
                 )
             }
 
-            LazyColumn(Modifier.fillMaxSize()) {
-                item {
-                    Row(
-                        Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)).padding(horizontal = 16.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("更改", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, color = Color.Gray)
-                        if (status.allChanges.isNotEmpty()) {
-                            val allSelected = selectedFiles.size == status.allChanges.size
-                            Text(
-                                if (allSelected) "取消全选" else "全选",
-                                modifier = Modifier.clickable {
-                                    selectedFiles = if (allSelected) emptySet() else status.allChanges.map { it.first }.toSet()
-                                },
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary
-                            )
+            if (selectedTabIndex == 0) {
+                // 提交信息输入框放在变更列表上方
+                OutlinedTextField(
+                    value = commitMessage,
+                    onValueChange = { commitMessage = it },
+                    placeholder = { Text("提交变更内容...") },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    maxLines = 3,
+                    trailingIcon = {
+                        if (commitMessage.isNotBlank()) {
+                            IconButton(onClick = {
+                                scope.launch {
+                                    GitManager.commit(repoRoot, commitMessage, selectedFiles.toList())
+                                        .onSuccess { commitMessage = ""; selectedFiles = emptySet(); refresh() }
+                                }
+                            }) {
+                                Icon(Icons.Default.Check, "提交", tint = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                    }
+                )
+
+                if (commitMessage.isNotBlank()) {
+                    Text(
+                        "提示：点击输入框右侧图标提交本地变更",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.Gray,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                }
+
+                LazyColumn(Modifier.fillMaxSize()) {
+                    item {
+                        Row(
+                            Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)).padding(horizontal = 16.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("本地更改 (${status.allChanges.size})", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, color = Color.Gray)
+                            if (status.allChanges.isNotEmpty()) {
+                                val allSelected = selectedFiles.size == status.allChanges.size
+                                Text(
+                                    if (allSelected) "取消全选" else "全选",
+                                    modifier = Modifier.clickable {
+                                        selectedFiles = if (allSelected) emptySet() else status.allChanges.map { it.first }.toSet()
+                                    },
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+                    items(status.allChanges) { (path, type) ->
+                        Row(Modifier.fillMaxWidth().clickable { selectedFiles = if (selectedFiles.contains(path)) selectedFiles - path else selectedFiles + path }.padding(16.dp, 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(checked = selectedFiles.contains(path), onCheckedChange = { selectedFiles = if (it) selectedFiles + path else selectedFiles - path })
+                            Text(path, modifier = Modifier.weight(1f), fontSize = 14.sp)
+                            Text(type.take(1), color = if (type == "Untracked") Color(0xFF4CAF50) else Color(0xFF2196F3), fontWeight = FontWeight.Bold)
                         }
                     }
                 }
-                items(status.allChanges) { (path, type) ->
-                    Row(Modifier.fillMaxWidth().clickable { selectedFiles = if (selectedFiles.contains(path)) selectedFiles - path else selectedFiles + path }.padding(16.dp, 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(checked = selectedFiles.contains(path), onCheckedChange = { selectedFiles = if (it) selectedFiles + path else selectedFiles - path })
-                        Text(path, modifier = Modifier.weight(1f), fontSize = 14.sp)
-                        Text(type.take(1), color = if (type == "Untracked") Color(0xFF4CAF50) else Color(0xFF2196F3), fontWeight = FontWeight.Bold)
-                    }
-                }
-                item {
-                    Text("最近提交", modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)).padding(16.dp, 4.dp), style = MaterialTheme.typography.labelMedium, color = Color.Gray)
-                }
-                items(history) { commit ->
-                    ListItem(
-                        headlineContent = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(commit.message, maxLines = 1, modifier = Modifier.weight(1f))
-                                // 如果是云端位置，显示 Badge
-                                if (commit.isRemote) {
-                                    Surface(
-                                        color = MaterialTheme.colorScheme.primaryContainer,
-                                        shape = MaterialTheme.shapes.extraSmall,
-                                        modifier = Modifier.padding(start = 4.dp)
-                                    ) {
-                                        Text("Cloud", modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp), fontSize = 10.sp, color = MaterialTheme.colorScheme.onPrimaryContainer)
+            } else {
+                LazyColumn(Modifier.fillMaxSize()) {
+                    items(history) { commit ->
+                        ListItem(
+                            headlineContent = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(commit.message, maxLines = 1, modifier = Modifier.weight(1f))
+                                    // 如果是云端位置，显示 Badge
+                                    if (commit.isRemote) {
+                                        Surface(
+                                            color = MaterialTheme.colorScheme.primaryContainer,
+                                            shape = MaterialTheme.shapes.extraSmall,
+                                            modifier = Modifier.padding(start = 4.dp)
+                                        ) {
+                                            Text("Cloud", modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp), fontSize = 10.sp, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                        }
                                     }
                                 }
-                            }
-                        },
-                        supportingContent = { Text("${commit.author} • ${SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date(commit.time))}") },
-                        trailingContent = { Text(commit.id.take(7), fontSize = 11.sp, color = Color.Gray) },
-                        modifier = Modifier.clickable { viewCommitChanges(commit) }
-                    )
+                            },
+                            supportingContent = { Text("${commit.author} • ${SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date(commit.time))}") },
+                            trailingContent = { Text(commit.id.take(7), fontSize = 11.sp, color = Color.Gray) },
+                            modifier = Modifier.clickable { viewCommitChanges(commit) }
+                        )
+                    }
                 }
             }
         }
@@ -340,7 +426,11 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
                 onDismiss = { showConfigDialog = false },
                 onConfirm = { url, user, token ->
                     showConfigDialog = false
-                    performSync(url, user, token)
+                    scope.launch {
+                        GitManager.saveRemoteConfig(repoRoot, url, user, token)
+                        refresh()
+                        Toast.makeText(context, "远程配置已保存", Toast.LENGTH_SHORT).show()
+                    }
                 }
             )
         }

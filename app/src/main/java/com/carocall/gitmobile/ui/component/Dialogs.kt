@@ -30,7 +30,7 @@ fun PushDialog(
 ) {
     GitAuthDialog(
         title = "配置远程同步",
-        confirmText = "保存并同步",
+        confirmText = "保存配置",
         initialUrl = initialUrl,
         initialUser = initialUser,
         initialToken = initialToken,

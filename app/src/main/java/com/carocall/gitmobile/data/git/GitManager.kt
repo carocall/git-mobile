@@ -23,7 +23,8 @@ object GitManager {
         try {
             Git.open(repoRoot).use { git ->
                 val s = git.status().call()
-                RepoStatus(s.untracked, s.modified, s.added, s.removed)
+                val branch = git.repository.branch
+                RepoStatus(branch, s.untracked, s.modified, s.added, s.removed)
             }
         } catch (e: Exception) { RepoStatus() }
     }

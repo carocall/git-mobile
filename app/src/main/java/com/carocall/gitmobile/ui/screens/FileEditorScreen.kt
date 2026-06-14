@@ -5,7 +5,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.PlayCircle
+import androidx.compose.material.icons.automirrored.filled.Redo
+import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -16,7 +17,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextIndent
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -28,8 +28,6 @@ import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
 import com.carocall.gitmobile.utils.isBinaryFile
 import com.carocall.gitmobile.utils.openFileExternally
-import io.github.rosemoe.sora.langs.java.JavaLanguage
-import io.github.rosemoe.sora.langs.textmate.TextMateLanguage
 import io.github.rosemoe.sora.widget.CodeEditor as SoraEditor
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
 import io.github.rosemoe.sora.text.ContentListener
@@ -152,6 +150,8 @@ fun SoraCodeEditor(file: File, onBack: () -> Unit) {
     var originalText by remember { mutableStateOf(file.readText()) }
     var editorInstance by remember { mutableStateOf<SoraEditor?>(null) }
     var hasChanges by remember { mutableStateOf(false) }
+    var canUndo by remember { mutableStateOf(false) }
+    var canRedo by remember { mutableStateOf(false) }
     val isDark = isSystemInDarkTheme()
 
     Scaffold(
@@ -160,42 +160,74 @@ fun SoraCodeEditor(file: File, onBack: () -> Unit) {
                 title = { Text(file.name, fontSize = 14.sp) },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) } },
                 actions = {
+                    IconButton(onClick = { editorInstance?.undo() }, enabled = canUndo) {
+                        Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = "撤销")
+                    }
+                    IconButton(onClick = { editorInstance?.redo() }, enabled = canRedo) {
+                        Icon(Icons.AutoMirrored.Filled.Redo, contentDescription = "重做")
+                    }
                     IconButton(
                         onClick = {
                             editorInstance?.let { editor ->
                                 val text = editor.text.toString()
-                                file.writeText(text)
-                                originalText = text
-                                hasChanges = false
+                                try {
+                                    file.writeText(text)
+                                    originalText = text
+                                    hasChanges = false
+                                } catch (e: Exception) {}
                             }
                         },
                         enabled = hasChanges
-                    ) { Icon(Icons.Default.Save, null) }
+                    ) { Icon(Icons.Default.Save, contentDescription = "保存") }
                 }
             )
         }
     ) { padding ->
-        AndroidView(
-            modifier = Modifier.padding(padding).fillMaxSize(),
-            factory = { ctx ->
-                SoraEditor(ctx).apply {
-                    setText(originalText)
-                    isLineNumberEnabled = true
-                    
-                    // 设置语言
-                    val ext = file.extension.lowercase()
-                    when (ext) {
-                        "java", "kt", "gradle", "kts" -> setEditorLanguage(JavaLanguage())
-                        "py" -> try { setEditorLanguage(TextMateLanguage.create("source.python", true)) } catch (e: Exception) {}
-                        "js" -> try { setEditorLanguage(TextMateLanguage.create("source.js", true)) } catch (e: Exception) {}
-                        "ts" -> try { setEditorLanguage(TextMateLanguage.create("source.ts", true)) } catch (e: Exception) {}
-                        "json" -> try { setEditorLanguage(TextMateLanguage.create("source.json", true)) } catch (e: Exception) {}
-                        "md" -> try { setEditorLanguage(TextMateLanguage.create("text.html.markdown", true)) } catch (e: Exception) {}
-                        "xml" -> try { setEditorLanguage(TextMateLanguage.create("text.xml", true)) } catch (e: Exception) {}
+        // 使用 Column 并设置 weight 以便键盘弹出时自动避让
+        Column(modifier = Modifier.padding(padding).fillMaxSize().imePadding()) {
+            AndroidView(
+                modifier = Modifier.fillMaxSize(),
+                factory = { ctx ->
+                    SoraEditor(ctx).apply {
+                        setText(originalText)
+                        isLineNumberEnabled = true
+                        
+                        // 不设置任何语言包，仅作为纯文本编辑器使用
+                        
+                        // 主题适配 (仅基础配色)
+                        colorScheme = if (isDark) {
+                            EditorColorScheme().apply {
+                                setColor(EditorColorScheme.WHOLE_BACKGROUND, Color(0xFF1E1E1E).toArgb())
+                                setColor(EditorColorScheme.TEXT_NORMAL, Color.LightGray.toArgb())
+                                setColor(EditorColorScheme.LINE_NUMBER_BACKGROUND, Color(0xFF252526).toArgb())
+                                setColor(EditorColorScheme.LINE_NUMBER, Color(0xFF858585).toArgb())
+                            }
+                        } else {
+                            EditorColorScheme()
+                        }
+                        
+                        // 监听内容变化及撤销栈状态
+                        text.addContentListener(object : ContentListener {
+                            override fun beforeReplace(content: Content) {}
+                            override fun afterInsert(content: Content, startLine: Int, startColumn: Int, endLine: Int, endColumn: Int, insertedContent: CharSequence) {
+                                updateUIState(content)
+                            }
+                            override fun afterDelete(content: Content, startLine: Int, startColumn: Int, endLine: Int, endColumn: Int, deletedContent: CharSequence) {
+                                updateUIState(content)
+                            }
+                            
+                            private fun updateUIState(content: Content) {
+                                hasChanges = content.toString() != originalText
+                                canUndo = canUndo()
+                                canRedo = canRedo()
+                            }
+                        })
+                        
+                        editorInstance = this
                     }
-                    
-                    // 主题适配
-                    colorScheme = if (isDark) {
+                },
+                update = { view ->
+                    view.colorScheme = if (isDark) {
                         EditorColorScheme().apply {
                             setColor(EditorColorScheme.WHOLE_BACKGROUND, Color(0xFF1E1E1E).toArgb())
                             setColor(EditorColorScheme.TEXT_NORMAL, Color.LightGray.toArgb())
@@ -205,25 +237,9 @@ fun SoraCodeEditor(file: File, onBack: () -> Unit) {
                     } else {
                         EditorColorScheme()
                     }
-                    
-                    // 监听内容变化
-                    getText().addContentListener(object : ContentListener {
-                        override fun beforeReplace(content: Content) {}
-                        override fun afterInsert(content: Content, startLine: Int, startColumn: Int, endLine: Int, endColumn: Int, insertedContent: CharSequence) {
-                            hasChanges = content.toString() != originalText
-                        }
-                        override fun afterDelete(content: Content, startLine: Int, startColumn: Int, endLine: Int, endColumn: Int, deletedContent: CharSequence) {
-                            hasChanges = content.toString() != originalText
-                        }
-                    })
-                    
-                    editorInstance = this
                 }
-            },
-            update = { view ->
-                view.colorScheme = if (isDark) EditorColorScheme() else EditorColorScheme()
-            }
-        )
+            )
+        }
     }
 }
 

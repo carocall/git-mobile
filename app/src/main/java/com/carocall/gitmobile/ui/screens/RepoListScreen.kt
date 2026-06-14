@@ -46,6 +46,7 @@ fun RepoListScreen(
     var showCloneDialog by remember { mutableStateOf(false) }
     var showRenameDialog by remember { mutableStateOf<File?>(null) }
     var showDeleteConfirm by remember { mutableStateOf<File?>(null) }
+    var cloningProgress by remember { mutableStateOf<Pair<String, Float>?>(null) }
     val dateFormat = remember { SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()) }
 
     fun refreshRepos() {
@@ -168,23 +169,79 @@ fun RepoListScreen(
         }
 
         if (showCloneDialog) {
-            CloneDialog(onDismiss = { showCloneDialog = false }, onConfirm = { url, name, user, token ->
+            CloneDialog(onDismiss = { showCloneDialog = false }, onConfirm = { url, name, branch, user, token ->
                 val f = File(rootDir, name)
                 if (f.exists()) {
                     Toast.makeText(context, "目录已存在", Toast.LENGTH_SHORT).show()
                 } else {
+                    showCloneDialog = false
                     scope.launch {
-                        val result = GitManager.clone(f, url, user, token)
+                        val progressMonitor = object : org.eclipse.jgit.lib.ProgressMonitor {
+                            private var total = 0
+                            private var completed = 0
+                            private var taskName = ""
+
+                            override fun start(totalTasks: Int) {}
+                            override fun beginTask(title: String, totalWork: Int) {
+                                taskName = title
+                                total = totalWork
+                                completed = 0
+                                cloningProgress = taskName to 0f
+                            }
+                            override fun update(completedUnits: Int) {
+                                completed += completedUnits
+                                if (total > 0) {
+                                    cloningProgress = taskName to (completed.toFloat() / total)
+                                } else {
+                                    cloningProgress = taskName to 0f
+                                }
+                            }
+                            override fun endTask() {}
+                            override fun isCancelled(): Boolean = false
+                            override fun showDuration(enabled: Boolean) {}
+                        }
+
+                        val result = GitManager.clone(
+                            f, url,
+                            user.ifBlank { null },
+                            token.ifBlank { null },
+                            branch.ifBlank { null },
+                            progressMonitor
+                        )
+                        
+                        cloningProgress = null
                         if (result.isSuccess) {
                             Toast.makeText(context, "克隆成功", Toast.LENGTH_SHORT).show()
                             refreshRepos()
-                            showCloneDialog = false
                         } else {
                             Toast.makeText(context, "克隆失败: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
                         }
                     }
                 }
             })
+        }
+
+        if (cloningProgress != null) {
+            val (task, progress) = cloningProgress!!
+            AlertDialog(
+                onDismissRequest = {},
+                title = { Text("正在克隆仓库...") },
+                text = {
+                    Column {
+                        Text(task)
+                        Spacer(Modifier.height(8.dp))
+                        if (progress > 0) {
+                            LinearProgressIndicator(
+                                progress = { progress },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        } else {
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        }
+                    }
+                },
+                confirmButton = {}
+            )
         }
 
         if (showDeleteConfirm != null) {

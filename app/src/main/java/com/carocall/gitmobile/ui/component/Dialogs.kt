@@ -40,9 +40,10 @@ fun PushDialog(
 }
 
 @Composable
-fun CloneDialog(onDismiss: () -> Unit, onConfirm: (String, String, String, String) -> Unit) {
+fun CloneDialog(onDismiss: () -> Unit, onConfirm: (String, String, String, String, String) -> Unit) {
     var url by remember { mutableStateOf("") }
     var name by remember { mutableStateOf("") }
+    var branch by remember { mutableStateOf("") }
     var user by remember { mutableStateOf("") }
     var token by remember { mutableStateOf("") }
 
@@ -60,15 +61,17 @@ fun CloneDialog(onDismiss: () -> Unit, onConfirm: (String, String, String, Strin
                 Spacer(Modifier.height(8.dp))
                 TextField(name, { name = it }, label = { Text("本地仓库名称") })
                 Spacer(Modifier.height(8.dp))
-                TextField(user, { user = it }, label = { Text("用户名") })
+                TextField(branch, { branch = it }, label = { Text("分支名称 (可选, 默认 HEAD)") })
                 Spacer(Modifier.height(8.dp))
-                TextField(token, { token = it }, label = { Text("Access Token / 密码") })
+                TextField(user, { user = it }, label = { Text("用户名 (公开仓库可不填)") })
+                Spacer(Modifier.height(8.dp))
+                TextField(token, { token = it }, label = { Text("Access Token / 密码 (公开仓库可不填)") })
             }
         },
         confirmButton = {
             Button(onClick = {
-                if (url.isNotBlank() && name.isNotBlank() && user.isNotBlank() && token.isNotBlank()) {
-                    onConfirm(url, name, user, token)
+                if (url.isNotBlank() && name.isNotBlank()) {
+                    onConfirm(url, name, branch, user, token)
                 }
             }) { Text("开始克隆") }
         },

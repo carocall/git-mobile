@@ -11,8 +11,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.*
@@ -42,7 +44,8 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     var status by remember { mutableStateOf(RepoStatus()) }
     var history by remember { mutableStateOf<List<CommitInfo>>(emptyList()) }
-    var selectedFiles by remember { mutableStateOf(setOf<String>()) }
+    var selectedStagedFiles by remember { mutableStateOf(setOf<String>()) }
+    var selectedUnstagedFiles by remember { mutableStateOf(setOf<String>()) }
     var commitMessage by remember { mutableStateOf("") }
 
     var sessionToken by remember { mutableStateOf("") }
@@ -64,10 +67,8 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
             status = GitManager.getStatus(repoRoot)
             history = GitManager.getHistory(repoRoot)
             remoteConfig = GitManager.getRemoteConfig(repoRoot)
-            // 只有当 selectedFiles 为空时才默认全选
-            if (selectedFiles.isEmpty() && status.allChanges.isNotEmpty()) {
-                selectedFiles = status.allChanges.map { it.first }.toSet()
-            }
+            // 自动选中所有暂存的文件
+            selectedStagedFiles = status.staged.map { it.path }.toSet()
         }
     }
 
@@ -93,15 +94,21 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
         }
     }
 
-    fun withRemoteConfig(action: (String, String, String) -> Unit) {
+    fun withRemoteConfig(forceAuth: Boolean = true, action: (String, String, String) -> Unit) {
         scope.launch {
             val config = GitManager.getRemoteConfig(repoRoot)
             remoteConfig = config
             val (url, user, savedToken) = config
             val currentToken = if (sessionToken.isBlank()) savedToken else sessionToken
-            if (url.isBlank() || user.isBlank() || currentToken.isBlank()) {
+            
+            // 如果 url 为空，无论如何都需要配置
+            if (url.isBlank()) {
+                showConfigDialog = true
+            } else if (forceAuth && (user.isBlank() || currentToken.isBlank())) {
+                // 如果强制需要认证（如推送、同步）且信息不全，则显示配置
                 showConfigDialog = true
             } else {
+                // 其他情况（如公开仓库拉取）直接执行
                 action(url, user, currentToken)
             }
         }
@@ -112,10 +119,16 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
             isLoading = true
             GitManager.pull(repoRoot, user, token).onSuccess {
                 Toast.makeText(context, "拉取成功", Toast.LENGTH_SHORT).show()
-                sessionToken = token
+                if (token.isNotBlank()) sessionToken = token
                 refresh()
-            }.onFailure {
-                Toast.makeText(context, "拉取失败: ${it.message}", Toast.LENGTH_LONG).show()
+            }.onFailure { e ->
+                val msg = e.message ?: ""
+                if (msg.contains("not authorized", ignoreCase = true) || msg.contains("auth", ignoreCase = true)) {
+                    Toast.makeText(context, "需要认证信息", Toast.LENGTH_SHORT).show()
+                    showConfigDialog = true
+                } else {
+                    Toast.makeText(context, "拉取失败: $msg", Toast.LENGTH_LONG).show()
+                }
             }
             isLoading = false
         }
@@ -126,10 +139,16 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
             isLoading = true
             GitManager.push(repoRoot, user, token).onSuccess {
                 Toast.makeText(context, "推送成功", Toast.LENGTH_SHORT).show()
-                sessionToken = token
+                if (token.isNotBlank()) sessionToken = token
                 refresh()
-            }.onFailure {
-                Toast.makeText(context, "推送失败: ${it.message}", Toast.LENGTH_LONG).show()
+            }.onFailure { e ->
+                val msg = e.message ?: ""
+                if (msg.contains("not authorized", ignoreCase = true) || msg.contains("auth", ignoreCase = true)) {
+                    Toast.makeText(context, "需要认证信息", Toast.LENGTH_SHORT).show()
+                    showConfigDialog = true
+                } else {
+                    Toast.makeText(context, "推送失败: $msg", Toast.LENGTH_LONG).show()
+                }
             }
             isLoading = false
         }
@@ -140,10 +159,16 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
             isLoading = true
             GitManager.sync(repoRoot, url, user, token).onSuccess {
                 Toast.makeText(context, "同步成功", Toast.LENGTH_SHORT).show()
-                sessionToken = token
+                if (token.isNotBlank()) sessionToken = token
                 refresh()
-            }.onFailure {
-                Toast.makeText(context, "失败: ${it.message}", Toast.LENGTH_LONG).show()
+            }.onFailure { e ->
+                val msg = e.message ?: ""
+                if (msg.contains("not authorized", ignoreCase = true) || msg.contains("auth", ignoreCase = true)) {
+                    Toast.makeText(context, "需要认证信息", Toast.LENGTH_SHORT).show()
+                    showConfigDialog = true
+                } else {
+                    Toast.makeText(context, "同步失败: $msg", Toast.LENGTH_LONG).show()
+                }
             }
             isLoading = false
         }
@@ -244,19 +269,19 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
                     modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    TextButton(onClick = { withRemoteConfig { _, u, t -> performPull(u, t) } }) {
+                    TextButton(onClick = { withRemoteConfig(forceAuth = false) { _, u, t -> performPull(u, t) } }) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(Icons.Default.Download, null)
                             Text("拉取", fontSize = 12.sp)
                         }
                     }
-                    TextButton(onClick = { withRemoteConfig { url, u, t -> performSync(url, u, t) } }) {
+                    TextButton(onClick = { withRemoteConfig(forceAuth = true) { url, u, t -> performSync(url, u, t) } }) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(Icons.Default.Sync, null)
                             Text("一键同步", fontSize = 12.sp)
                         }
                     }
-                    TextButton(onClick = { withRemoteConfig { _, u, t -> performPush(u, t) } }) {
+                    TextButton(onClick = { withRemoteConfig(forceAuth = true) { _, u, t -> performPush(u, t) } }) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(Icons.Default.Upload, null)
                             Text("推送", fontSize = 12.sp)
@@ -295,8 +320,16 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
                         if (commitMessage.isNotBlank()) {
                             IconButton(onClick = {
                                 scope.launch {
-                                    GitManager.commit(repoRoot, commitMessage, selectedFiles.toList())
-                                        .onSuccess { commitMessage = ""; selectedFiles = emptySet(); refresh() }
+                                    val filesToCommit = if (selectedStagedFiles.isNotEmpty()) selectedStagedFiles.toList() else emptyList()
+                                    GitManager.commit(repoRoot, commitMessage, filesToCommit)
+                                        .onSuccess { 
+                                            commitMessage = ""
+                                            selectedStagedFiles = emptySet()
+                                            refresh() 
+                                        }
+                                        .onFailure {
+                                            Toast.makeText(context, "提交失败: ${it.message}", Toast.LENGTH_LONG).show()
+                                        }
                                 }
                             }) {
                                 Icon(Icons.Default.Check, "提交", tint = MaterialTheme.colorScheme.primary)
@@ -307,7 +340,7 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
 
                 if (commitMessage.isNotBlank()) {
                     Text(
-                        "提示：点击输入框右侧图标提交本地变更",
+                        if (selectedStagedFiles.isNotEmpty()) "提示：将提交选中的暂存变更" else "提示：将提交所有本地变更（自动暂存）",
                         style = MaterialTheme.typography.labelSmall,
                         color = Color.Gray,
                         modifier = Modifier.padding(horizontal = 16.dp)
@@ -315,36 +348,61 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
                 }
 
                 LazyColumn(Modifier.fillMaxSize()) {
-                    item {
-                        Row(
-                            Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)).padding(horizontal = 16.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("本地更改 (${status.allChanges.size})", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, color = Color.Gray)
-                            if (status.allChanges.isNotEmpty()) {
-                                val allSelected = selectedFiles.size == status.allChanges.size
-                                Text(
-                                    if (allSelected) "取消全选" else "全选",
-                                    modifier = Modifier.clickable {
-                                        selectedFiles = if (allSelected) emptySet() else status.allChanges.map { it.first }.toSet()
-                                    },
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
+                    // --- 暂存的变更 ---
+                    if (status.staged.isNotEmpty()) {
+                        item {
+                            Row(
+                                Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)).padding(horizontal = 16.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("暂存的更改 (${status.staged.size})", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, color = Color.Gray)
+                                IconButton(onClick = { scope.launch { GitManager.unstageAll(repoRoot); refresh() } }, modifier = Modifier.size(24.dp)) {
+                                    Icon(Icons.Default.Remove, "全部取消暂存", modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        }
+                        items(status.staged) { change ->
+                            Row(Modifier.fillMaxWidth().padding(16.dp, 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text(change.path, modifier = Modifier.weight(1f), fontSize = 14.sp)
+                                val color = when (change.type) {
+                                    com.carocall.gitmobile.data.model.GitChange.ChangeType.ADDED -> Color(0xFF4CAF50)
+                                    com.carocall.gitmobile.data.model.GitChange.ChangeType.DELETED -> Color(0xFFE91E63)
+                                    else -> Color(0xFF2196F3)
+                                }
+                                Text(change.type.name.take(1), color = color, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp))
+                                IconButton(onClick = { scope.launch { GitManager.unstage(repoRoot, change.path); refresh() } }) {
+                                    Icon(Icons.Default.Remove, "取消暂存", tint = Color.Gray)
+                                }
                             }
                         }
                     }
-                    items(status.allChanges) { (path, type) ->
-                        Row(Modifier.fillMaxWidth().clickable { selectedFiles = if (selectedFiles.contains(path)) selectedFiles - path else selectedFiles + path }.padding(16.dp, 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(checked = selectedFiles.contains(path), onCheckedChange = { selectedFiles = if (it) selectedFiles + path else selectedFiles - path })
-                            Text(path, modifier = Modifier.weight(1f), fontSize = 14.sp)
-                            val color = when (type) {
-                                "Untracked" -> Color(0xFF4CAF50) // 绿色
-                                "Added" -> Color(0xFF4CAF50)     // 绿色
-                                "Removed" -> Color(0xFFE91E63)   // 红色
-                                else -> Color(0xFF2196F3)        // 蓝色 (Modified)
+
+                    // --- 未暂存的变更 ---
+                    if (status.unstaged.isNotEmpty()) {
+                        item {
+                            Row(
+                                Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)).padding(horizontal = 16.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("更改 (${status.unstaged.size})", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, color = Color.Gray)
+                                IconButton(onClick = { scope.launch { GitManager.stageAll(repoRoot); refresh() } }, modifier = Modifier.size(24.dp)) {
+                                    Icon(Icons.Default.Add, "全部暂存", modifier = Modifier.size(16.dp))
+                                }
                             }
-                            Text(type.take(1), color = color, fontWeight = FontWeight.Bold)
+                        }
+                        items(status.unstaged) { change ->
+                            Row(Modifier.fillMaxWidth().padding(16.dp, 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text(change.path, modifier = Modifier.weight(1f), fontSize = 14.sp)
+                                val color = when (change.type) {
+                                    com.carocall.gitmobile.data.model.GitChange.ChangeType.UNTRACKED -> Color(0xFF4CAF50)
+                                    com.carocall.gitmobile.data.model.GitChange.ChangeType.DELETED -> Color(0xFFE91E63)
+                                    else -> Color(0xFF2196F3)
+                                }
+                                Text(change.type.name.take(1), color = color, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp))
+                                IconButton(onClick = { scope.launch { GitManager.stage(repoRoot, change.path); refresh() } }) {
+                                    Icon(Icons.Default.Add, "暂存", tint = MaterialTheme.colorScheme.primary)
+                                }
+                            }
                         }
                     }
                 }

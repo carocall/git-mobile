@@ -1,6 +1,7 @@
 package com.carocall.gitmobile.data.git
 
 import com.carocall.gitmobile.data.model.CommitInfo
+import com.carocall.gitmobile.data.model.GitChange
 import com.carocall.gitmobile.data.model.RepoStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -24,12 +25,62 @@ object GitManager {
             Git.open(repoRoot).use { git ->
                 val s = git.status().call()
                 val branch = git.repository.branch
-                // removed: 已经加入暂存区的删除
-                // missing: 工作区已删除但未加入暂存区
-                val allRemoved = s.removed + s.missing
-                RepoStatus(branch, s.untracked, s.modified, s.added, allRemoved)
+                
+                val staged = mutableListOf<GitChange>()
+                s.added.forEach { staged.add(GitChange(it, GitChange.ChangeType.ADDED)) }
+                s.changed.forEach { staged.add(GitChange(it, GitChange.ChangeType.MODIFIED)) }
+                s.removed.forEach { staged.add(GitChange(it, GitChange.ChangeType.DELETED)) }
+
+                val unstaged = mutableListOf<GitChange>()
+                s.untracked.forEach { unstaged.add(GitChange(it, GitChange.ChangeType.UNTRACKED)) }
+                s.modified.forEach { unstaged.add(GitChange(it, GitChange.ChangeType.MODIFIED)) }
+                s.missing.forEach { unstaged.add(GitChange(it, GitChange.ChangeType.DELETED)) }
+
+                RepoStatus(branch, staged, unstaged)
             }
         } catch (e: Exception) { RepoStatus() }
+    }
+
+    suspend fun stage(repoRoot: File, path: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            Git.open(repoRoot).use { git ->
+                val file = File(repoRoot, path)
+                if (file.exists()) {
+                    git.add().addFilepattern(path).call()
+                } else {
+                    git.rm().addFilepattern(path).call()
+                }
+                Result.success(Unit)
+            }
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
+    suspend fun unstage(repoRoot: File, path: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            Git.open(repoRoot).use { git ->
+                git.reset().addPath(path).call()
+                Result.success(Unit)
+            }
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
+    suspend fun stageAll(repoRoot: File): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            Git.open(repoRoot).use { git ->
+                git.add().addFilepattern(".").call()
+                git.add().addFilepattern(".").setUpdate(true).call()
+                Result.success(Unit)
+            }
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
+    suspend fun unstageAll(repoRoot: File): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            Git.open(repoRoot).use { git ->
+                git.reset().call()
+                Result.success(Unit)
+            }
+        } catch (e: Exception) { Result.failure(e) }
     }
 
     suspend fun commit(repoRoot: File, message: String, files: List<String>): Result<String> = withContext(Dispatchers.IO) {
@@ -90,8 +141,11 @@ object GitManager {
     suspend fun pull(repoRoot: File, username: String, token: String): Result<String> = withContext(Dispatchers.IO) {
         try {
             Git.open(repoRoot).use { git ->
-                val cp = UsernamePasswordCredentialsProvider(username, token)
-                git.pull().setCredentialsProvider(cp).setRemote("origin").call()
+                val pullCmd = git.pull().setRemote("origin")
+                if (username.isNotBlank() && token.isNotBlank()) {
+                    pullCmd.setCredentialsProvider(UsernamePasswordCredentialsProvider(username, token))
+                }
+                pullCmd.call()
                 Result.success("拉取成功")
             }
         } catch (e: Exception) { Result.failure(e) }
@@ -100,8 +154,11 @@ object GitManager {
     suspend fun push(repoRoot: File, username: String, token: String): Result<String> = withContext(Dispatchers.IO) {
         try {
             Git.open(repoRoot).use { git ->
-                val cp = UsernamePasswordCredentialsProvider(username, token)
-                git.push().setRemote("origin").setCredentialsProvider(cp).call()
+                val pushCmd = git.push().setRemote("origin")
+                if (username.isNotBlank() && token.isNotBlank()) {
+                    pushCmd.setCredentialsProvider(UsernamePasswordCredentialsProvider(username, token))
+                }
+                pushCmd.call()
                 Result.success("推送成功")
             }
         } catch (e: Exception) { Result.failure(e) }
@@ -110,20 +167,28 @@ object GitManager {
     suspend fun sync(repoRoot: File, remoteUrl: String, username: String, token: String): Result<String> = withContext(Dispatchers.IO) {
         try {
             Git.open(repoRoot).use { git ->
-                val cp = UsernamePasswordCredentialsProvider(username, token)
+                val cp = if (username.isNotBlank() && token.isNotBlank()) {
+                    UsernamePasswordCredentialsProvider(username, token)
+                } else null
 
                 // 1. 先尝试 Pull (拉取)
                 try {
-                    git.pull().setCredentialsProvider(cp).setRemote("origin").call()
+                    val pullCmd = git.pull().setRemote("origin")
+                    if (cp != null) pullCmd.setCredentialsProvider(cp)
+                    pullCmd.call()
                 } catch (e: Exception) {
                     // 忽略拉取错误（例如由于历史不相关导致的失败）
                 }
 
                 // 2. 再执行 Push (推送)
-                git.push().setRemote("origin").setCredentialsProvider(cp).call()
+                val pushCmd = git.push().setRemote("origin")
+                if (cp != null) pushCmd.setCredentialsProvider(cp)
+                pushCmd.call()
 
-                // 3. 只有当 Push 成功没有抛出异常时，才保存配置到本地
-                saveRemoteConfig(repoRoot, remoteUrl, username, token)
+                // 3. 只有当 Push 成功没有抛出异常时，且提供了认证信息，才保存配置到本地
+                if (username.isNotBlank() && token.isNotBlank()) {
+                    saveRemoteConfig(repoRoot, remoteUrl, username, token)
+                }
 
                 Result.success("同步成功")
             }
@@ -132,19 +197,36 @@ object GitManager {
         }
     }
 
-    suspend fun clone(dir: File, url: String, username: String, token: String): Result<String> = withContext(Dispatchers.IO) {
+    suspend fun clone(
+        dir: File,
+        url: String,
+        username: String? = null,
+        token: String? = null,
+        branch: String? = null,
+        progressMonitor: org.eclipse.jgit.lib.ProgressMonitor? = null
+    ): Result<String> = withContext(Dispatchers.IO) {
         try {
-            val cp = UsernamePasswordCredentialsProvider(username, token)
-            Git.cloneRepository()
+            val cloneCommand = Git.cloneRepository()
                 .setURI(url)
                 .setDirectory(dir)
-                .setCredentialsProvider(cp)
-                .call()
-                .use { _ ->
-                    // 克隆成功后，保存认证信息到本地 Git 配置中（方便后续同步）
+                .setProgressMonitor(progressMonitor)
+
+            if (!username.isNullOrBlank() && !token.isNullOrBlank()) {
+                val cp = UsernamePasswordCredentialsProvider(username, token)
+                cloneCommand.setCredentialsProvider(cp)
+            }
+
+            if (!branch.isNullOrBlank()) {
+                cloneCommand.setBranch(branch)
+            }
+
+            cloneCommand.call().use { _ ->
+                // 克隆成功后，如果有认证信息，保存认证信息到本地 Git 配置中（方便后续同步）
+                if (!username.isNullOrBlank() && !token.isNullOrBlank()) {
                     saveRemoteConfig(dir, url, username, token)
-                    Result.success("克隆成功")
                 }
+                Result.success("克隆成功")
+            }
         } catch (e: Exception) {
             Result.failure(e)
         }

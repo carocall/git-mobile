@@ -374,25 +374,57 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
             } else {
                 LazyColumn(Modifier.fillMaxSize()) {
                     items(history) { commit ->
-                        ListItem(
-                            headlineContent = {
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable { viewCommitChanges(commit) }
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(Modifier.weight(1f)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(commit.message, maxLines = 1, modifier = Modifier.weight(1f))
-                                    // 如果是云端位置，显示 Badge
+                                    Text(
+                                        text = commit.message,
+                                        maxLines = 1,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 15.sp,
+                                        modifier = Modifier.weight(1f, fill = false)
+                                    )
                                     if (commit.isRemote) {
                                         Surface(
                                             color = MaterialTheme.colorScheme.primaryContainer,
                                             shape = MaterialTheme.shapes.extraSmall,
-                                            modifier = Modifier.padding(start = 4.dp)
+                                            modifier = Modifier.padding(start = 8.dp)
                                         ) {
-                                            Text("Cloud", modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp), fontSize = 10.sp, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                            Text(
+                                                text = "Cloud",
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                                                fontSize = 10.sp,
+                                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                fontWeight = FontWeight.Bold
+                                            )
                                         }
                                     }
                                 }
-                            },
-                            supportingContent = { Text("${commit.author} • ${SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date(commit.time))}") },
-                            trailingContent = { Text(commit.id.take(7), fontSize = 11.sp, color = Color.Gray) },
-                            modifier = Modifier.clickable { viewCommitChanges(commit) }
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    text = "${commit.author} • ${SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date(commit.time))}",
+                                    fontSize = 12.sp,
+                                    color = Color.Gray
+                                )
+                            }
+                            Text(
+                                text = commit.id.take(7),
+                                fontSize = 11.sp,
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                color = Color.Gray,
+                                modifier = Modifier.padding(start = 8.dp)
+                            )
+                        }
+                        HorizontalDivider(
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                            thickness = 0.5.dp,
+                            color = MaterialTheme.colorScheme.outlineVariant
                         )
                     }
                 }

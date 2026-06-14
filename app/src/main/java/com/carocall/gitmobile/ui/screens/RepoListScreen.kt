@@ -52,7 +52,9 @@ fun RepoListScreen(
     val dateFormat = remember { SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()) }
 
     fun refreshRepos() {
-        val list = rootDir.listFiles()?.filter { it.isDirectory } ?: emptyList()
+        val list = rootDir.listFiles()?.filter { 
+            it.isDirectory && File(it, ".git").exists() 
+        } ?: emptyList()
         repos = when (sortOrder) {
             RepoSortOrder.TIME -> list.sortedByDescending { it.lastModified() }
             RepoSortOrder.NAME -> list.sortedBy { it.name.lowercase() }
@@ -81,7 +83,7 @@ fun RepoListScreen(
                 ) { Icon(Icons.Default.CloudDownload, stringResource(R.string.clone_repo)) }
                 FloatingActionButton(
                     onClick = { showCreateDialog = true },
-                    containerColor = MaterialTheme.colorScheme.primary
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer
                 ) { Icon(Icons.Default.Add, stringResource(R.string.create_repo)) }
             }
         }

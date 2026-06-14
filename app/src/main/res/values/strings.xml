@@ -91,5 +91,6 @@
     <string name="start_clone">Start Cloning</string>
     <string name="username">Username</string>
     <string name="token_password">Access Token / Password</string>
+    <string name="private_project">Private Project</string>
     <string name="open_file">Open File</string>
 </resources>

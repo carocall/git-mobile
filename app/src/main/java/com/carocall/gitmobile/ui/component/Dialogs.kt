@@ -1,22 +1,26 @@
 package com.carocall.gitmobile.ui.component
 
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import com.carocall.gitmobile.R
 
 @Composable
 fun InputDialog(title: String, initialValue: String = "", onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
     var name by remember { mutableStateOf(initialValue) }
     AlertDialog(onDismissRequest = onDismiss, title = { Text(title) },
-        text = { TextField(value = name, onValueChange = { name = it }, singleLine = true) },
+        text = {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
         confirmButton = { Button(onClick = { if (name.isNotBlank()) onConfirm(name) }) { Text(stringResource(R.string.ok)) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } }
     )
@@ -51,23 +55,49 @@ fun CloneDialog(onDismiss: () -> Unit, onConfirm: (String, String, String, Strin
 
     AlertDialog(onDismissRequest = onDismiss, title = { Text(stringResource(R.string.clone_remote_repo)) },
         text = {
-            Column {
-                TextField(url, {
-                    url = it
-                    // 自动从 URL 提取仓库名作为默认建议
-                    if (name.isBlank() || name == url.substringBeforeLast(".git").substringAfterLast("/")) {
-                        val suggestedName = it.substringAfterLast("/").substringBefore(".git")
-                        if (suggestedName.isNotBlank()) name = suggestedName
-                    }
-                }, label = { Text(stringResource(R.string.https_url)) })
-                Spacer(Modifier.height(8.dp))
-                TextField(name, { name = it }, label = { Text(stringResource(R.string.local_repo_name)) })
-                Spacer(Modifier.height(8.dp))
-                TextField(branch, { branch = it }, label = { Text(stringResource(R.string.branch_name_optional)) })
-                Spacer(Modifier.height(8.dp))
-                TextField(user, { user = it }, label = { Text(stringResource(R.string.user_optional)) })
-                Spacer(Modifier.height(8.dp))
-                TextField(token, { token = it }, label = { Text(stringResource(R.string.token_optional)) })
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = url,
+                    onValueChange = {
+                        url = it
+                        if (name.isBlank() || name == url.substringBeforeLast(".git").substringAfterLast("/")) {
+                            val suggestedName = it.substringAfterLast("/").substringBefore(".git")
+                            if (suggestedName.isNotBlank()) name = suggestedName
+                        }
+                    },
+                    label = { Text(stringResource(R.string.https_url)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text(stringResource(R.string.local_repo_name)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = branch,
+                    onValueChange = { branch = it },
+                    label = { Text(stringResource(R.string.branch_name_optional)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                
+                OutlinedTextField(
+                    value = user,
+                    onValueChange = { user = it },
+                    label = { Text(stringResource(R.string.username)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = token,
+                    onValueChange = { token = it },
+                    label = { Text(stringResource(R.string.token_password)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
             }
         },
         confirmButton = {
@@ -97,12 +127,28 @@ fun GitAuthDialog(
 
     AlertDialog(onDismissRequest = onDismiss, title = { Text(title) },
         text = {
-            Column {
-                TextField(url, { url = it }, label = { Text(stringResource(R.string.https_url)) })
-                Spacer(Modifier.height(8.dp))
-                TextField(user, { user = it }, label = { Text(stringResource(R.string.username)) })
-                Spacer(Modifier.height(8.dp))
-                TextField(token, { token = it }, label = { Text(stringResource(R.string.token_password)) })
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = url,
+                    onValueChange = { url = it },
+                    label = { Text(stringResource(R.string.https_url)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = user,
+                    onValueChange = { user = it },
+                    label = { Text(stringResource(R.string.username)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = token,
+                    onValueChange = { token = it },
+                    label = { Text(stringResource(R.string.token_password)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
             }
         },
         confirmButton = {

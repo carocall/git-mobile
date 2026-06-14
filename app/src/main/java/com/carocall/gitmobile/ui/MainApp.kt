@@ -6,10 +6,8 @@ import androidx.compose.runtime.Composable
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.carocall.gitmobile.ui.screens.FileEditorScreen
-import com.carocall.gitmobile.ui.screens.GitCommitScreen
-import com.carocall.gitmobile.ui.screens.RepoExplorerScreen
-import com.carocall.gitmobile.ui.screens.RepoListScreen
+import com.carocall.gitmobile.ui.screens.*
+import com.carocall.gitmobile.ui.theme.ThemeMode
 
 import java.io.File
 import java.net.URLDecoder
@@ -18,7 +16,12 @@ import java.net.URLEncoder
 // --- 导航与主入口 ---
 
 @Composable
-fun MainApp() {
+fun MainApp(
+    themeMode: ThemeMode,
+    onThemeChange: (ThemeMode) -> Unit,
+    sortOrder: RepoSortOrder,
+    onSortOrderChange: (RepoSortOrder) -> Unit
+) {
     val navController = rememberNavController()
     NavHost(
         navController = navController,
@@ -53,10 +56,25 @@ fun MainApp() {
         }
     ) {
         composable("repo_list") {
-            RepoListScreen(onOpenRepo = { repo ->
-                val encodedPath = URLEncoder.encode(repo.absolutePath, "UTF-8")
-                navController.navigate("repo_explorer/$encodedPath")
-            })
+            RepoListScreen(
+                sortOrder = sortOrder,
+                onOpenRepo = { repo ->
+                    val encodedPath = URLEncoder.encode(repo.absolutePath, "UTF-8")
+                    navController.navigate("repo_explorer/$encodedPath")
+                },
+                onOpenSettings = {
+                    navController.navigate("settings")
+                }
+            )
+        }
+        composable("settings") {
+            SettingsScreen(
+                currentTheme = themeMode,
+                onThemeChange = onThemeChange,
+                currentSortOrder = sortOrder,
+                onSortOrderChange = onSortOrderChange,
+                navController = navController
+            )
         }
         composable("repo_explorer/{repoRootPath}") { backStackEntry ->
             val path = URLDecoder.decode(backStackEntry.arguments?.getString("repoRootPath") ?: "", "UTF-8")

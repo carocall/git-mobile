@@ -32,18 +32,20 @@ enum class RepoSortOrder { NAME, TIME }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RepoListScreen(onOpenRepo: (File) -> Unit) {
+fun RepoListScreen(
+    sortOrder: RepoSortOrder,
+    onOpenRepo: (File) -> Unit,
+    onOpenSettings: () -> Unit
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val rootDir = remember { context.filesDir }
     
-    var sortOrder by remember { mutableStateOf(RepoSortOrder.TIME) }
     var repos by remember { mutableStateOf(emptyList<File>()) }
     var showCreateDialog by remember { mutableStateOf(false) }
     var showCloneDialog by remember { mutableStateOf(false) }
     var showRenameDialog by remember { mutableStateOf<File?>(null) }
     var showDeleteConfirm by remember { mutableStateOf<File?>(null) }
-    var sortMenuExpanded by remember { mutableStateOf(false) }
     val dateFormat = remember { SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()) }
 
     fun refreshRepos() {
@@ -61,20 +63,8 @@ fun RepoListScreen(onOpenRepo: (File) -> Unit) {
             CenterAlignedTopAppBar(
                 title = { Text("我的工作区", fontWeight = FontWeight.ExtraBold) },
                 actions = {
-                    Box {
-                        IconButton(onClick = { sortMenuExpanded = true }) { Icon(Icons.AutoMirrored.Filled.Sort, "排序") }
-                        DropdownMenu(expanded = sortMenuExpanded, onDismissRequest = { sortMenuExpanded = false }) {
-                            DropdownMenuItem(
-                                text = { Text("按时间排序") },
-                                onClick = { sortOrder = RepoSortOrder.TIME; sortMenuExpanded = false },
-                                leadingIcon = { Icon(Icons.Default.Schedule, null) }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("按名称排序") },
-                                onClick = { sortOrder = RepoSortOrder.NAME; sortMenuExpanded = false },
-                                leadingIcon = { Icon(Icons.Default.SortByAlpha, null) }
-                            )
-                        }
+                    IconButton(onClick = onOpenSettings) {
+                        Icon(Icons.Default.Settings, contentDescription = "Settings")
                     }
                 }
             )

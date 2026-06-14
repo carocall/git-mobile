@@ -1,5 +1,6 @@
 package com.carocall.gitmobile.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -32,6 +33,7 @@ import io.github.rosemoe.sora.widget.CodeEditor as SoraEditor
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
 import io.github.rosemoe.sora.text.ContentListener
 import io.github.rosemoe.sora.text.Content
+import kotlinx.coroutines.delay
 import java.io.File
 
 /**
@@ -75,6 +77,18 @@ fun FileEditorScreen(file: File, onBack: () -> Unit) {
 fun NovelEditor(file: File, onBack: () -> Unit) {
     var text by remember { mutableStateOf(file.readText()) }
     var original by remember { mutableStateOf(text) }
+    var showExitDialog by remember { mutableStateOf(false) }
+    val hasChanges = text != original
+
+    val handleBack = {
+        if (hasChanges) {
+            showExitDialog = true
+        } else {
+            onBack()
+        }
+    }
+
+    BackHandler(enabled = true, onBack = handleBack)
     
     var fontSize by remember { mutableFloatStateOf(18f) }
     var bgColor by remember { mutableStateOf(Color(0xFFF5F2E9)) } 
@@ -87,10 +101,30 @@ fun NovelEditor(file: File, onBack: () -> Unit) {
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text(file.name, fontSize = 14.sp, color = if (bgColor == Color(0xFF1A1A1A)) Color.White else Color.Black) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = if (bgColor == Color(0xFF1A1A1A)) Color.White else Color.Black) } },
+                navigationIcon = { IconButton(onClick = handleBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = if (bgColor == Color(0xFF1A1A1A)) Color.White else Color.Black) } },
                 actions = {
                     IconButton(onClick = { showSettings = true }) { Icon(Icons.Default.Settings, null, tint = if (bgColor == Color(0xFF1A1A1A)) Color.White else Color.Black) }
-                    IconButton(onClick = { file.writeText(text); original = text }, enabled = text != original) { Icon(Icons.Default.Save, null, tint = if (bgColor == Color(0xFF1A1A1A)) Color.White else Color.Black) }
+                    IconButton(
+                        onClick = {
+                            try {
+                                file.writeText(text)
+                                original = text
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                            }
+                        },
+                        enabled = hasChanges
+                    ) {
+                        Icon(
+                            Icons.Default.Save, 
+                            contentDescription = "保存", 
+                            tint = if (bgColor == Color(0xFF1A1A1A)) {
+                                if (hasChanges) Color.White else Color.Gray
+                            } else {
+                                if (hasChanges) Color.Black else Color.LightGray
+                            }
+                        )
+                    }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = bgColor)
             )
@@ -140,6 +174,29 @@ fun NovelEditor(file: File, onBack: () -> Unit) {
             }
         }
     }
+
+    if (showExitDialog) {
+        AlertDialog(
+            onDismissRequest = { showExitDialog = false },
+            title = { Text("未保存的内容") },
+            text = { Text("文件已修改，确定要放弃更改并退出吗？") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showExitDialog = false
+                        onBack()
+                    }
+                ) {
+                    Text("放弃更改", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showExitDialog = false }) {
+                    Text("取消")
+                }
+            }
+        )
+    }
 }
 
 // --- 2. Sora 代码/文本编辑器 ---
@@ -152,13 +209,24 @@ fun SoraCodeEditor(file: File, onBack: () -> Unit) {
     var hasChanges by remember { mutableStateOf(false) }
     var canUndo by remember { mutableStateOf(false) }
     var canRedo by remember { mutableStateOf(false) }
+    var showExitDialog by remember { mutableStateOf(false) }
     val isDark = isSystemInDarkTheme()
+
+    val handleBack = {
+        if (hasChanges) {
+            showExitDialog = true
+        } else {
+            onBack()
+        }
+    }
+
+    BackHandler(enabled = true, onBack = handleBack)
 
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text(file.name, fontSize = 14.sp) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) } },
+                navigationIcon = { IconButton(onClick = handleBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) } },
                 actions = {
                     IconButton(onClick = { editorInstance?.undo() }, enabled = canUndo) {
                         Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = "撤销")
@@ -240,6 +308,29 @@ fun SoraCodeEditor(file: File, onBack: () -> Unit) {
                 }
             )
         }
+    }
+
+    if (showExitDialog) {
+        AlertDialog(
+            onDismissRequest = { showExitDialog = false },
+            title = { Text("未保存的内容") },
+            text = { Text("文件已修改，确定要放弃更改并退出吗？") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showExitDialog = false
+                        onBack()
+                    }
+                ) {
+                    Text("放弃更改", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showExitDialog = false }) {
+                    Text("取消")
+                }
+            }
+        )
     }
 }
 

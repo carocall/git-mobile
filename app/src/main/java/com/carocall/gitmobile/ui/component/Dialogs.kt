@@ -9,14 +9,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.carocall.gitmobile.R
 
 @Composable
 fun InputDialog(title: String, initialValue: String = "", onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
     var name by remember { mutableStateOf(initialValue) }
     AlertDialog(onDismissRequest = onDismiss, title = { Text(title) },
         text = { TextField(value = name, onValueChange = { name = it }, singleLine = true) },
-        confirmButton = { Button(onClick = { if (name.isNotBlank()) onConfirm(name) }) { Text("确定") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+        confirmButton = { Button(onClick = { if (name.isNotBlank()) onConfirm(name) }) { Text(stringResource(R.string.ok)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } }
     )
 }
 
@@ -29,8 +31,8 @@ fun PushDialog(
     onConfirm: (String, String, String) -> Unit
 ) {
     GitAuthDialog(
-        title = "配置远程同步",
-        confirmText = "保存配置",
+        title = stringResource(R.string.config_remote_sync),
+        confirmText = stringResource(R.string.save_config),
         initialUrl = initialUrl,
         initialUser = initialUser,
         initialToken = initialToken,
@@ -47,7 +49,7 @@ fun CloneDialog(onDismiss: () -> Unit, onConfirm: (String, String, String, Strin
     var user by remember { mutableStateOf("") }
     var token by remember { mutableStateOf("") }
 
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("克隆远程仓库") },
+    AlertDialog(onDismissRequest = onDismiss, title = { Text(stringResource(R.string.clone_remote_repo)) },
         text = {
             Column {
                 TextField(url, {
@@ -57,15 +59,15 @@ fun CloneDialog(onDismiss: () -> Unit, onConfirm: (String, String, String, Strin
                         val suggestedName = it.substringAfterLast("/").substringBefore(".git")
                         if (suggestedName.isNotBlank()) name = suggestedName
                     }
-                }, label = { Text("HTTPS 远程地址") })
+                }, label = { Text(stringResource(R.string.https_url)) })
                 Spacer(Modifier.height(8.dp))
-                TextField(name, { name = it }, label = { Text("本地仓库名称") })
+                TextField(name, { name = it }, label = { Text(stringResource(R.string.local_repo_name)) })
                 Spacer(Modifier.height(8.dp))
-                TextField(branch, { branch = it }, label = { Text("分支名称 (可选, 默认 HEAD)") })
+                TextField(branch, { branch = it }, label = { Text(stringResource(R.string.branch_name_optional)) })
                 Spacer(Modifier.height(8.dp))
-                TextField(user, { user = it }, label = { Text("用户名 (公开仓库可不填)") })
+                TextField(user, { user = it }, label = { Text(stringResource(R.string.user_optional)) })
                 Spacer(Modifier.height(8.dp))
-                TextField(token, { token = it }, label = { Text("Access Token / 密码 (公开仓库可不填)") })
+                TextField(token, { token = it }, label = { Text(stringResource(R.string.token_optional)) })
             }
         },
         confirmButton = {
@@ -73,9 +75,9 @@ fun CloneDialog(onDismiss: () -> Unit, onConfirm: (String, String, String, Strin
                 if (url.isNotBlank() && name.isNotBlank()) {
                     onConfirm(url, name, branch, user, token)
                 }
-            }) { Text("开始克隆") }
+            }) { Text(stringResource(R.string.start_clone)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } }
     )
 }
 
@@ -96,11 +98,11 @@ fun GitAuthDialog(
     AlertDialog(onDismissRequest = onDismiss, title = { Text(title) },
         text = {
             Column {
-                TextField(url, { url = it }, label = { Text("HTTPS 远程地址") })
+                TextField(url, { url = it }, label = { Text(stringResource(R.string.https_url)) })
                 Spacer(Modifier.height(8.dp))
-                TextField(user, { user = it }, label = { Text("用户名") })
+                TextField(user, { user = it }, label = { Text(stringResource(R.string.username)) })
                 Spacer(Modifier.height(8.dp))
-                TextField(token, { token = it }, label = { Text("Access Token / 密码") })
+                TextField(token, { token = it }, label = { Text(stringResource(R.string.token_password)) })
             }
         },
         confirmButton = {
@@ -110,6 +112,6 @@ fun GitAuthDialog(
                 }
             }) { Text(confirmText) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } }
     )
 }

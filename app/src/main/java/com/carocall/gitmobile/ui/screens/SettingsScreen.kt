@@ -71,8 +71,8 @@ fun SettingsScreen(
                 SettingItem(
                     title = stringResource(R.string.settings_language),
                     subtitle = when (AppCompatDelegate.getApplicationLocales()[0]?.language) {
-                        "zh" -> "简体中文"
-                        "en" -> "English"
+                        "zh" -> stringResource(R.string.language_chinese)
+                        "en" -> stringResource(R.string.language_english)
                         else -> stringResource(R.string.language_system)
                     },
                     icon = Icons.Default.Language,

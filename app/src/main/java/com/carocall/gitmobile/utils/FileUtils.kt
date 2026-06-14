@@ -20,7 +20,7 @@ fun openFileExternally(context: Context, file: File) {
             setDataAndType(uri, mimeType)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        context.startActivity(Intent.createChooser(intent, "打开文件"))
+        context.startActivity(Intent.createChooser(intent, context.getString(com.carocall.gitmobile.R.string.open_file)))
     } catch (e: Exception) {
         e.printStackTrace()
     }

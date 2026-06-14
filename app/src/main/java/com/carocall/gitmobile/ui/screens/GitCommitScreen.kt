@@ -26,6 +26,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.carocall.gitmobile.R
 import com.carocall.gitmobile.data.git.GitManager
 import com.carocall.gitmobile.data.model.CommitInfo
 import com.carocall.gitmobile.data.model.RepoStatus
@@ -114,16 +116,16 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
         scope.launch {
             isLoading = true
             GitManager.pull(repoRoot, user, token).onSuccess {
-                Toast.makeText(context, "拉取成功", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.pull_success), Toast.LENGTH_SHORT).show()
                 if (token.isNotBlank()) sessionToken = token
                 refresh()
             }.onFailure { e ->
                 val msg = e.message ?: ""
                 if (msg.contains("not authorized", ignoreCase = true) || msg.contains("auth", ignoreCase = true)) {
-                    Toast.makeText(context, "需要认证信息", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, context.getString(R.string.auth_required), Toast.LENGTH_SHORT).show()
                     showConfigDialog = true
                 } else {
-                    Toast.makeText(context, "拉取失败: $msg", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, context.getString(R.string.pull_failed, msg), Toast.LENGTH_LONG).show()
                 }
             }
             isLoading = false
@@ -134,16 +136,16 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
         scope.launch {
             isLoading = true
             GitManager.push(repoRoot, user, token).onSuccess {
-                Toast.makeText(context, "推送成功", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.push_success), Toast.LENGTH_SHORT).show()
                 if (token.isNotBlank()) sessionToken = token
                 refresh()
             }.onFailure { e ->
                 val msg = e.message ?: ""
                 if (msg.contains("not authorized", ignoreCase = true) || msg.contains("auth", ignoreCase = true)) {
-                    Toast.makeText(context, "需要认证信息", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, context.getString(R.string.auth_required), Toast.LENGTH_SHORT).show()
                     showConfigDialog = true
                 } else {
-                    Toast.makeText(context, "推送失败: $msg", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, context.getString(R.string.push_failed, msg), Toast.LENGTH_LONG).show()
                 }
             }
             isLoading = false
@@ -154,16 +156,16 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
         scope.launch {
             isLoading = true
             GitManager.sync(repoRoot, url, user, token).onSuccess {
-                Toast.makeText(context, "同步成功", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.sync_success), Toast.LENGTH_SHORT).show()
                 if (token.isNotBlank()) sessionToken = token
                 refresh()
             }.onFailure { e ->
                 val msg = e.message ?: ""
                 if (msg.contains("not authorized", ignoreCase = true) || msg.contains("auth", ignoreCase = true)) {
-                    Toast.makeText(context, "需要认证信息", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, context.getString(R.string.auth_required), Toast.LENGTH_SHORT).show()
                     showConfigDialog = true
                 } else {
-                    Toast.makeText(context, "同步失败: $msg", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, context.getString(R.string.sync_failed, msg), Toast.LENGTH_LONG).show()
                 }
             }
             isLoading = false
@@ -173,9 +175,9 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("源代码管理") },
+                title = { Text(stringResource(R.string.source_control)) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") }
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
                 }
             )
         }
@@ -200,7 +202,7 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text(
-                                text = "远程仓库",
+                                text = stringResource(R.string.remote_repo),
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.primary
                             )
@@ -208,7 +210,7 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
                                 text = if (remoteConfig.first.isNotBlank()) {
                                     val name = remoteConfig.first.substringAfterLast("/").substringBefore(".git")
                                     if (name.isBlank()) "Git Remote" else name
-                                } else "未配置同步地址",
+                                } else stringResource(R.string.no_remote_config),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold
                             )
@@ -230,7 +232,7 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
                                     )
                                     Spacer(Modifier.width(4.dp))
                                     Text(
-                                        "已连接",
+                                        stringResource(R.string.connected),
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.primary
                                     )
@@ -268,19 +270,19 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
                     TextButton(onClick = { withRemoteConfig(forceAuth = false) { _, u, t -> performPull(u, t) } }) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(Icons.Default.Download, null)
-                            Text("拉取", fontSize = 12.sp)
+                            Text(stringResource(R.string.pull), fontSize = 12.sp)
                         }
                     }
                     TextButton(onClick = { withRemoteConfig(forceAuth = true) { url, u, t -> performSync(url, u, t) } }) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(Icons.Default.Sync, null)
-                            Text("一键同步", fontSize = 12.sp)
+                            Text(stringResource(R.string.one_click_sync), fontSize = 12.sp)
                         }
                     }
                     TextButton(onClick = { withRemoteConfig(forceAuth = true) { _, u, t -> performPush(u, t) } }) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(Icons.Default.Upload, null)
-                            Text("推送", fontSize = 12.sp)
+                            Text(stringResource(R.string.push), fontSize = 12.sp)
                         }
                     }
                 }
@@ -295,12 +297,12 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
                 Tab(
                     selected = selectedTabIndex == 0,
                     onClick = { selectedTabIndex = 0 },
-                    text = { Text("待提交变更", style = MaterialTheme.typography.titleSmall) }
+                    text = { Text(stringResource(R.string.pending_changes), style = MaterialTheme.typography.titleSmall) }
                 )
                 Tab(
                     selected = selectedTabIndex == 1,
                     onClick = { selectedTabIndex = 1 },
-                    text = { Text("最近提交历史", style = MaterialTheme.typography.titleSmall) }
+                    text = { Text(stringResource(R.string.recent_history), style = MaterialTheme.typography.titleSmall) }
                 )
             }
 
@@ -309,7 +311,7 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
                 OutlinedTextField(
                     value = commitMessage,
                     onValueChange = { commitMessage = it },
-                    placeholder = { Text("提交变更内容...") },
+                    placeholder = { Text(stringResource(R.string.commit_msg_placeholder)) },
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                     maxLines = 3,
                     trailingIcon = {
@@ -320,7 +322,7 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
                                         .onSuccess { commitMessage = ""; selectedFiles = emptySet(); refresh() }
                                 }
                             }) {
-                                Icon(Icons.Default.Check, "提交", tint = MaterialTheme.colorScheme.primary)
+                                Icon(Icons.Default.Check, stringResource(R.string.confirm), tint = MaterialTheme.colorScheme.primary)
                             }
                         }
                     }
@@ -328,7 +330,7 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
 
                 if (commitMessage.isNotBlank()) {
                     Text(
-                        "提示：点击输入框右侧图标提交本地变更",
+                        stringResource(R.string.commit_hint),
                         style = MaterialTheme.typography.labelSmall,
                         color = Color.Gray,
                         modifier = Modifier.padding(horizontal = 16.dp)
@@ -341,11 +343,11 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
                             Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)).padding(horizontal = 16.dp, vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("本地更改 (${status.allChanges.size})", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, color = Color.Gray)
+                            Text(stringResource(R.string.local_changes, status.allChanges.size), modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, color = Color.Gray)
                             if (status.allChanges.isNotEmpty()) {
                                 val allSelected = selectedFiles.size == status.allChanges.size
                                 Text(
-                                    if (allSelected) "取消全选" else "全选",
+                                    if (allSelected) stringResource(R.string.unselect_all) else stringResource(R.string.select_all),
                                     modifier = Modifier.clickable {
                                         selectedFiles = if (allSelected) emptySet() else status.allChanges.map { it.first }.toSet()
                                     },
@@ -400,7 +402,7 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
         if (showChangesDialog) {
             AlertDialog(
                 onDismissRequest = { showChangesDialog = false },
-                title = { Text("提交变更 - ${selectedCommit?.message?.take(20)}...") },
+                title = { Text(stringResource(R.string.commit_changes_title, selectedCommit?.message?.take(20) ?: "")) },
                 text = {
                     LazyColumn(Modifier.heightIn(max = 400.dp)) {
                         items(commitChanges) { (path, type) ->
@@ -412,14 +414,14 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
                         }
                     }
                 },
-                confirmButton = { TextButton(onClick = { showChangesDialog = false }) { Text("关闭") } }
+                confirmButton = { TextButton(onClick = { showChangesDialog = false }) { Text(stringResource(R.string.close)) } }
             )
         }
 
         if (showDiffDialog) {
             AlertDialog(
                 onDismissRequest = { showDiffDialog = false },
-                title = { Text("变更详情: ${selectedDiffFile?.substringAfterLast("/")}") },
+                title = { Text(stringResource(R.string.change_details, selectedDiffFile?.substringAfterLast("/") ?: "")) },
                 text = {
                     Box(Modifier.heightIn(max = 500.dp).verticalScroll(rememberScrollState()).horizontalScroll(rememberScrollState())) {
                         Column {
@@ -441,7 +443,7 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
                         }
                     }
                 },
-                confirmButton = { TextButton(onClick = { showDiffDialog = false }) { Text("关闭") } }
+                confirmButton = { TextButton(onClick = { showDiffDialog = false }) { Text(stringResource(R.string.close)) } }
             )
         }
 
@@ -456,14 +458,14 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
                     scope.launch {
                         GitManager.saveRemoteConfig(repoRoot, url, user, token)
                         refresh()
-                        Toast.makeText(context, "远程配置已保存", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, context.getString(R.string.remote_config_saved), Toast.LENGTH_SHORT).show()
                     }
                 }
             )
         }
 
         if (isLoading) {
-            AlertDialog(onDismissRequest = {}, confirmButton = {}, text = { Row(verticalAlignment = Alignment.CenterVertically) { CircularProgressIndicator(); Spacer(Modifier.width(16.dp)); Text("同步中...") } })
+            AlertDialog(onDismissRequest = {}, confirmButton = {}, text = { Row(verticalAlignment = Alignment.CenterVertically) { CircularProgressIndicator(); Spacer(Modifier.width(16.dp)); Text(stringResource(R.string.syncing)) } })
         }
     }
 }

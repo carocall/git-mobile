@@ -18,6 +18,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.carocall.gitmobile.R
 import com.carocall.gitmobile.data.git.GitManager
 import com.carocall.gitmobile.ui.component.CloneDialog
 import com.carocall.gitmobile.ui.component.InputDialog
@@ -62,7 +64,7 @@ fun RepoListScreen(
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("我的工作区", fontWeight = FontWeight.ExtraBold) },
+                title = { Text(stringResource(R.string.workspace_title), fontWeight = FontWeight.ExtraBold) },
                 actions = {
                     IconButton(onClick = onOpenSettings) {
                         Icon(Icons.Default.Settings, contentDescription = "Settings")
@@ -76,11 +78,11 @@ fun RepoListScreen(
                     onClick = { showCloneDialog = true },
                     containerColor = MaterialTheme.colorScheme.secondaryContainer,
                     modifier = Modifier.padding(bottom = 12.dp)
-                ) { Icon(Icons.Default.CloudDownload, "克隆仓库") }
+                ) { Icon(Icons.Default.CloudDownload, stringResource(R.string.clone_repo)) }
                 FloatingActionButton(
                     onClick = { showCreateDialog = true },
                     containerColor = MaterialTheme.colorScheme.primary
-                ) { Icon(Icons.Default.Add, "创建仓库") }
+                ) { Icon(Icons.Default.Add, stringResource(R.string.create_repo)) }
             }
         }
     ) { padding ->
@@ -89,7 +91,7 @@ fun RepoListScreen(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Default.AutoAwesome, null, modifier = Modifier.size(64.dp), tint = Color.LightGray)
                     Spacer(Modifier.height(16.dp))
-                    Text("开启你的第一个创作项目", color = Color.Gray)
+                    Text(stringResource(R.string.first_project_hint), color = Color.Gray)
                 }
             }
         } else {
@@ -122,12 +124,12 @@ fun RepoListScreen(
                                 IconButton(onClick = { menuExpanded = true }) { Icon(Icons.Default.MoreVert, null, tint = Color.Gray) }
                                 DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
                                     DropdownMenuItem(
-                                        text = { Text("项目重命名") },
+                                        text = { Text(stringResource(R.string.rename_project)) },
                                         onClick = { menuExpanded = false; showRenameDialog = repo },
                                         leadingIcon = { Icon(Icons.Default.Edit, null) }
                                     )
                                     DropdownMenuItem(
-                                        text = { Text("移除项目", color = MaterialTheme.colorScheme.error) },
+                                        text = { Text(stringResource(R.string.remove_project), color = MaterialTheme.colorScheme.error) },
                                         onClick = {
                                             menuExpanded = false
                                             showDeleteConfirm = repo
@@ -143,7 +145,7 @@ fun RepoListScreen(
         }
 
         if (showCreateDialog) {
-            InputDialog(title = "创建新项目", onDismiss = { showCreateDialog = false }, onConfirm = { name ->
+            InputDialog(title = stringResource(R.string.create_new_project), onDismiss = { showCreateDialog = false }, onConfirm = { name ->
                 val f = File(rootDir, name)
                 if (f.mkdirs()) {
                     scope.launch {
@@ -157,13 +159,13 @@ fun RepoListScreen(
 
         if (showRenameDialog != null) {
             val repo = showRenameDialog!!
-            InputDialog(title = "重命名项目", initialValue = repo.name, onDismiss = { showRenameDialog = null }, onConfirm = { newName ->
+            InputDialog(title = stringResource(R.string.rename_project_title), initialValue = repo.name, onDismiss = { showRenameDialog = null }, onConfirm = { newName ->
                 val dest = File(repo.parentFile, newName)
                 if (repo.renameTo(dest)) {
                     refreshRepos()
                     showRenameDialog = null
                 } else {
-                    Toast.makeText(context, "重命名失败", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, context.getString(R.string.rename_failed), Toast.LENGTH_SHORT).show()
                 }
             })
         }
@@ -172,7 +174,7 @@ fun RepoListScreen(
             CloneDialog(onDismiss = { showCloneDialog = false }, onConfirm = { url, name, branch, user, token ->
                 val f = File(rootDir, name)
                 if (f.exists()) {
-                    Toast.makeText(context, "目录已存在", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, context.getString(R.string.dir_already_exists), Toast.LENGTH_SHORT).show()
                 } else {
                     showCloneDialog = false
                     scope.launch {
@@ -211,10 +213,10 @@ fun RepoListScreen(
                         
                         cloningProgress = null
                         if (result.isSuccess) {
-                            Toast.makeText(context, "克隆成功", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, context.getString(R.string.clone_success), Toast.LENGTH_SHORT).show()
                             refreshRepos()
                         } else {
-                            Toast.makeText(context, "克隆失败: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                            Toast.makeText(context, context.getString(R.string.clone_failed, result.exceptionOrNull()?.message), Toast.LENGTH_LONG).show()
                         }
                     }
                 }
@@ -225,7 +227,7 @@ fun RepoListScreen(
             val (task, progress) = cloningProgress!!
             AlertDialog(
                 onDismissRequest = {},
-                title = { Text("正在克隆仓库...") },
+                title = { Text(stringResource(R.string.cloning_repo)) },
                 text = {
                     Column {
                         Text(task)
@@ -247,8 +249,8 @@ fun RepoListScreen(
         if (showDeleteConfirm != null) {
             AlertDialog(
                 onDismissRequest = { showDeleteConfirm = null },
-                title = { Text("确认删除") },
-                text = { Text("确定要删除项目 \"${showDeleteConfirm?.name}\" 吗？此操作不可撤销，且会删除本地所有相关文件。") },
+                title = { Text(stringResource(R.string.confirm_delete_title)) },
+                text = { Text(stringResource(R.string.confirm_delete_msg, showDeleteConfirm?.name ?: "")) },
                 confirmButton = {
                     Button(
                         onClick = {
@@ -257,10 +259,10 @@ fun RepoListScreen(
                             showDeleteConfirm = null
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                    ) { Text("确认删除") }
+                    ) { Text(stringResource(R.string.confirm_delete_title)) }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showDeleteConfirm = null }) { Text("取消") }
+                    TextButton(onClick = { showDeleteConfirm = null }) { Text(stringResource(R.string.cancel)) }
                 }
             )
         }

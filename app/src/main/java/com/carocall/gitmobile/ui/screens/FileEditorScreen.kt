@@ -27,6 +27,8 @@ import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
+import androidx.compose.ui.res.stringResource
+import com.carocall.gitmobile.R
 import com.carocall.gitmobile.utils.isBinaryFile
 import com.carocall.gitmobile.utils.openFileExternally
 import io.github.rosemoe.sora.widget.CodeEditor as SoraEditor
@@ -117,7 +119,7 @@ fun NovelEditor(file: File, onBack: () -> Unit) {
                     ) {
                         Icon(
                             Icons.Default.Save, 
-                            contentDescription = "保存", 
+                            contentDescription = stringResource(R.string.save), 
                             tint = if (bgColor == Color(0xFF1A1A1A)) {
                                 if (hasChanges) Color.White else Color.Gray
                             } else {
@@ -156,15 +158,15 @@ fun NovelEditor(file: File, onBack: () -> Unit) {
         if (showSettings) {
             ModalBottomSheet(onDismissRequest = { showSettings = false }, sheetState = sheetState) {
                 Column(Modifier.padding(24.dp).padding(bottom = 32.dp)) {
-                    Text("编辑器设置", style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.editor_settings), style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(24.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("字号", modifier = Modifier.width(48.dp))
+                        Text(stringResource(R.string.font_size), modifier = Modifier.width(48.dp))
                         Slider(value = fontSize, onValueChange = { fontSize = it }, valueRange = 12f..32f, modifier = Modifier.weight(1f))
                         Text("${fontSize.toInt()}", modifier = Modifier.padding(start = 8.dp))
                     }
                     Spacer(Modifier.height(24.dp))
-                    Text("背景颜色")
+                    Text(stringResource(R.string.bg_color))
                     Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.padding(top = 12.dp)) {
                         themes.forEach { color ->
                             Box(modifier = Modifier.size(40.dp).background(color, CircleShape).border(if (bgColor == color) 2.dp else 1.dp, if (bgColor == color) MaterialTheme.colorScheme.primary else Color.LightGray, CircleShape).clickable { bgColor = color })
@@ -178,8 +180,8 @@ fun NovelEditor(file: File, onBack: () -> Unit) {
     if (showExitDialog) {
         AlertDialog(
             onDismissRequest = { showExitDialog = false },
-            title = { Text("未保存的内容") },
-            text = { Text("文件已修改，确定要放弃更改并退出吗？") },
+            title = { Text(stringResource(R.string.unsaved_content)) },
+            text = { Text(stringResource(R.string.unsaved_exit_msg)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -187,12 +189,12 @@ fun NovelEditor(file: File, onBack: () -> Unit) {
                         onBack()
                     }
                 ) {
-                    Text("放弃更改", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.discard_changes), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showExitDialog = false }) {
-                    Text("取消")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         )
@@ -229,10 +231,10 @@ fun SoraCodeEditor(file: File, onBack: () -> Unit) {
                 navigationIcon = { IconButton(onClick = handleBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) } },
                 actions = {
                     IconButton(onClick = { editorInstance?.undo() }, enabled = canUndo) {
-                        Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = "撤销")
+                        Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = stringResource(R.string.undo))
                     }
                     IconButton(onClick = { editorInstance?.redo() }, enabled = canRedo) {
-                        Icon(Icons.AutoMirrored.Filled.Redo, contentDescription = "重做")
+                        Icon(Icons.AutoMirrored.Filled.Redo, contentDescription = stringResource(R.string.redo))
                     }
                     IconButton(
                         onClick = {
@@ -246,7 +248,7 @@ fun SoraCodeEditor(file: File, onBack: () -> Unit) {
                             }
                         },
                         enabled = hasChanges
-                    ) { Icon(Icons.Default.Save, contentDescription = "保存") }
+                    ) { Icon(Icons.Default.Save, contentDescription = stringResource(R.string.save)) }
                 }
             )
         }
@@ -313,8 +315,8 @@ fun SoraCodeEditor(file: File, onBack: () -> Unit) {
     if (showExitDialog) {
         AlertDialog(
             onDismissRequest = { showExitDialog = false },
-            title = { Text("未保存的内容") },
-            text = { Text("文件已修改，确定要放弃更改并退出吗？") },
+            title = { Text(stringResource(R.string.unsaved_content)) },
+            text = { Text(stringResource(R.string.unsaved_exit_msg)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -322,12 +324,12 @@ fun SoraCodeEditor(file: File, onBack: () -> Unit) {
                         onBack()
                     }
                 ) {
-                    Text("放弃更改", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.discard_changes), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showExitDialog = false }) {
-                    Text("取消")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         )
@@ -358,11 +360,11 @@ fun ImageViewer(file: File, onBack: () -> Unit) {
             }
             Card(Modifier.fillMaxWidth().padding(16.dp)) {
                 Column(Modifier.padding(16.dp)) {
-                    Text("文件信息", style = MaterialTheme.typography.titleSmall)
+                    Text(stringResource(R.string.file_info), style = MaterialTheme.typography.titleSmall)
                     Spacer(Modifier.height(8.dp))
-                    Text("路径: ${file.absolutePath}", fontSize = 12.sp, color = Color.Gray)
-                    Text("大小: ${file.length() / 1024} KB", fontSize = 12.sp, color = Color.Gray)
-                    Text("最后修改: ${java.util.Date(file.lastModified())}", fontSize = 12.sp, color = Color.Gray)
+                    Text(stringResource(R.string.path_label, file.absolutePath), fontSize = 12.sp, color = Color.Gray)
+                    Text(stringResource(R.string.size_label, "${file.length() / 1024} KB"), fontSize = 12.sp, color = Color.Gray)
+                    Text(stringResource(R.string.last_modified_label, java.util.Date(file.lastModified()).toString()), fontSize = 12.sp, color = Color.Gray)
                 }
             }
         }
@@ -387,12 +389,12 @@ fun BinaryInfoViewer(file: File, onBack: () -> Unit) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(Icons.Default.Save, null, modifier = Modifier.size(64.dp), tint = Color.LightGray)
                 Spacer(Modifier.height(16.dp))
-                Text("不支持直接预览此文件类型", style = MaterialTheme.typography.titleMedium)
-                Text("后缀: ${file.extension}", color = Color.Gray)
-                Text("大小: ${file.length() / 1024} KB", color = Color.Gray)
+                Text(stringResource(R.string.preview_not_supported), style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.extension_label, file.extension), color = Color.Gray)
+                Text(stringResource(R.string.size_label, "${file.length() / 1024} KB"), color = Color.Gray)
                 Spacer(Modifier.height(24.dp))
                 Button(onClick = { openFileExternally(context, file) }) {
-                    Text("使用系统应用打开")
+                    Text(stringResource(R.string.open_externally))
                 }
             }
         }
@@ -440,10 +442,10 @@ fun MediaViewer(file: File, onBack: () -> Unit) {
             }
             Card(Modifier.fillMaxWidth().padding(16.dp)) {
                 Column(Modifier.padding(16.dp)) {
-                    Text("媒体信息", style = MaterialTheme.typography.titleSmall)
+                    Text(stringResource(R.string.media_info), style = MaterialTheme.typography.titleSmall)
                     Spacer(Modifier.height(8.dp))
-                    Text("类型: ${file.extension.uppercase()}", fontSize = 12.sp, color = Color.Gray)
-                    Text("大小: ${file.length() / 1024 / 1024} MB", fontSize = 12.sp, color = Color.Gray)
+                    Text(stringResource(R.string.type_label, file.extension.uppercase()), fontSize = 12.sp, color = Color.Gray)
+                    Text(stringResource(R.string.size_label, "${file.length() / 1024 / 1024} MB"), fontSize = 12.sp, color = Color.Gray)
                 }
             }
         }

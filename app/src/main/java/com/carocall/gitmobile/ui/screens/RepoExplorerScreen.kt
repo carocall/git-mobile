@@ -56,6 +56,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.res.stringResource
+import com.carocall.gitmobile.R
 import com.carocall.gitmobile.data.git.GitManager
 import com.carocall.gitmobile.data.model.RepoStatus
 import com.carocall.gitmobile.ui.component.InputDialog
@@ -118,11 +120,11 @@ fun RepoExplorerScreen(repoRoot: File, onBackToRepos: () -> Unit, onOpenFile: (F
                 navigationIcon = {
                     IconButton(onClick = {
                         if (currentDirPath == repoRoot.absolutePath) onBackToRepos() else currentDirPath = currentDir.parentFile?.absolutePath ?: repoRoot.absolutePath
-                    }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) }
+                    }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
                 },
                 actions = {
                     IconButton(onClick = { onGoToGit(repoRoot.absolutePath) }) {
-                        BadgedBox(badge = { if (gitStatus.hasChanges) Badge { Text("!") } }) { Icon(Icons.Default.Source, null) }
+                        BadgedBox(badge = { if (gitStatus.hasChanges) Badge { Text("!") } }) { Icon(Icons.Default.Source, stringResource(R.string.source_control)) }
                     }
                     // 此处移除了原来的 CloudUpload 按钮
                 }
@@ -137,7 +139,7 @@ fun RepoExplorerScreen(repoRoot: File, onBackToRepos: () -> Unit, onOpenFile: (F
         }
     ) { padding ->
         if (files.isEmpty()) {
-            Box(Modifier.fillMaxSize().padding(padding), Alignment.Center) { Text("空文件夹", color = Color.Gray) }
+            Box(Modifier.fillMaxSize().padding(padding), Alignment.Center) { Text(stringResource(R.string.empty_folder), color = Color.Gray) }
         } else {
             LazyColumn(Modifier.padding(padding).fillMaxSize()) {
                 items(files) { file ->
@@ -177,8 +179,8 @@ fun RepoExplorerScreen(repoRoot: File, onBackToRepos: () -> Unit, onOpenFile: (F
                             Box {
                                 IconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, null) }
                                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                                    DropdownMenuItem(text = { Text("重命名") }, onClick = { menuOpen = false; showRenameDialog = file })
-                                    DropdownMenuItem(text = { Text("删除") }, onClick = {
+                                    DropdownMenuItem(text = { Text(stringResource(R.string.rename)) }, onClick = { menuOpen = false; showRenameDialog = file })
+                                    DropdownMenuItem(text = { Text(stringResource(R.string.delete)) }, onClick = {
                                         menuOpen = false; file.deleteRecursively(); refresh()
                                     })
                                 }
@@ -194,14 +196,15 @@ fun RepoExplorerScreen(repoRoot: File, onBackToRepos: () -> Unit, onOpenFile: (F
 
         // 弹窗处理
         showCreateDialog?.let { isFolder ->
-            InputDialog(title = "新建${if (isFolder) "文件夹" else "文件"}", onDismiss = { showCreateDialog = null }, onConfirm = { name ->
+            val typeName = if (isFolder) stringResource(R.string.new_folder) else stringResource(R.string.new_file)
+            InputDialog(title = stringResource(R.string.create_new, typeName), onDismiss = { showCreateDialog = null }, onConfirm = { name ->
                 val f = File(currentDir, name)
                 if (isFolder) f.mkdirs() else f.createNewFile()
                 refresh(); showCreateDialog = null
             })
         }
         showRenameDialog?.let { file ->
-            InputDialog(title = "重命名", initialValue = file.name, onDismiss = { showRenameDialog = null }, onConfirm = { name ->
+            InputDialog(title = stringResource(R.string.rename), initialValue = file.name, onDismiss = { showRenameDialog = null }, onConfirm = { name ->
                 file.renameTo(File(file.parentFile, name)); refresh(); showRenameDialog = null
             })
         }

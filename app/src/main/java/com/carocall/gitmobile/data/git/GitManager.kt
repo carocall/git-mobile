@@ -1,7 +1,6 @@
 package com.carocall.gitmobile.data.git
 
 import com.carocall.gitmobile.data.model.CommitInfo
-import com.carocall.gitmobile.data.model.GitChange
 import com.carocall.gitmobile.data.model.RepoStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -26,61 +25,15 @@ object GitManager {
                 val s = git.status().call()
                 val branch = git.repository.branch
                 
-                val staged = mutableListOf<GitChange>()
-                s.added.forEach { staged.add(GitChange(it, GitChange.ChangeType.ADDED)) }
-                s.changed.forEach { staged.add(GitChange(it, GitChange.ChangeType.MODIFIED)) }
-                s.removed.forEach { staged.add(GitChange(it, GitChange.ChangeType.DELETED)) }
-
-                val unstaged = mutableListOf<GitChange>()
-                s.untracked.forEach { unstaged.add(GitChange(it, GitChange.ChangeType.UNTRACKED)) }
-                s.modified.forEach { unstaged.add(GitChange(it, GitChange.ChangeType.MODIFIED)) }
-                s.missing.forEach { unstaged.add(GitChange(it, GitChange.ChangeType.DELETED)) }
-
-                RepoStatus(branch, staged, unstaged)
+                RepoStatus(
+                    branch = branch,
+                    untracked = s.untracked,
+                    modified = s.modified,
+                    added = s.added,
+                    removed = s.removed + s.missing
+                )
             }
         } catch (e: Exception) { RepoStatus() }
-    }
-
-    suspend fun stage(repoRoot: File, path: String): Result<Unit> = withContext(Dispatchers.IO) {
-        try {
-            Git.open(repoRoot).use { git ->
-                val file = File(repoRoot, path)
-                if (file.exists()) {
-                    git.add().addFilepattern(path).call()
-                } else {
-                    git.rm().addFilepattern(path).call()
-                }
-                Result.success(Unit)
-            }
-        } catch (e: Exception) { Result.failure(e) }
-    }
-
-    suspend fun unstage(repoRoot: File, path: String): Result<Unit> = withContext(Dispatchers.IO) {
-        try {
-            Git.open(repoRoot).use { git ->
-                git.reset().addPath(path).call()
-                Result.success(Unit)
-            }
-        } catch (e: Exception) { Result.failure(e) }
-    }
-
-    suspend fun stageAll(repoRoot: File): Result<Unit> = withContext(Dispatchers.IO) {
-        try {
-            Git.open(repoRoot).use { git ->
-                git.add().addFilepattern(".").call()
-                git.add().addFilepattern(".").setUpdate(true).call()
-                Result.success(Unit)
-            }
-        } catch (e: Exception) { Result.failure(e) }
-    }
-
-    suspend fun unstageAll(repoRoot: File): Result<Unit> = withContext(Dispatchers.IO) {
-        try {
-            Git.open(repoRoot).use { git ->
-                git.reset().call()
-                Result.success(Unit)
-            }
-        } catch (e: Exception) { Result.failure(e) }
     }
 
     suspend fun commit(repoRoot: File, message: String, files: List<String>): Result<String> = withContext(Dispatchers.IO) {

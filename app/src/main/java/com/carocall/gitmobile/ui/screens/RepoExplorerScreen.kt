@@ -55,6 +55,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.saveable.rememberSaveable
 import com.carocall.gitmobile.data.git.GitManager
 import com.carocall.gitmobile.data.model.RepoStatus
 import com.carocall.gitmobile.ui.component.InputDialog
@@ -70,9 +71,11 @@ fun RepoExplorerScreen(repoRoot: File, onBackToRepos: () -> Unit, onOpenFile: (F
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    // 当前浏览的内部目录状态
-    var currentDir by remember { mutableStateOf(repoRoot) }
-    var files by remember { mutableStateOf(currentDir.listFiles()?.toList() ?: emptyList()) }
+    // 当前浏览的内部目录状态 (使用 rememberSaveable 保存路径字符串以支持返回时恢复)
+    var currentDirPath by rememberSaveable(repoRoot.absolutePath) { mutableStateOf(repoRoot.absolutePath) }
+    val currentDir = remember(currentDirPath) { File(currentDirPath) }
+    
+    var files by remember { mutableStateOf(emptyList<File>()) }
     var gitStatus by remember { mutableStateOf(RepoStatus()) }
 
     // 弹窗状态
@@ -90,8 +93,8 @@ fun RepoExplorerScreen(repoRoot: File, onBackToRepos: () -> Unit, onOpenFile: (F
 
     // 处理系统返回键
     BackHandler {
-        if (currentDir == repoRoot) onBackToRepos() else {
-            currentDir = currentDir.parentFile ?: repoRoot
+        if (currentDirPath == repoRoot.absolutePath) onBackToRepos() else {
+            currentDirPath = File(currentDirPath).parentFile?.absolutePath ?: repoRoot.absolutePath
         }
     }
 
@@ -111,10 +114,10 @@ fun RepoExplorerScreen(repoRoot: File, onBackToRepos: () -> Unit, onOpenFile: (F
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text(if (currentDir == repoRoot) repoRoot.name else currentDir.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                title = { Text(if (currentDirPath == repoRoot.absolutePath) repoRoot.name else currentDir.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
                     IconButton(onClick = {
-                        if (currentDir == repoRoot) onBackToRepos() else currentDir = currentDir.parentFile ?: repoRoot
+                        if (currentDirPath == repoRoot.absolutePath) onBackToRepos() else currentDirPath = currentDir.parentFile?.absolutePath ?: repoRoot.absolutePath
                     }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) }
                 },
                 actions = {
@@ -182,7 +185,7 @@ fun RepoExplorerScreen(repoRoot: File, onBackToRepos: () -> Unit, onOpenFile: (F
                             }
                         },
                         modifier = Modifier.clickable {
-                            if (file.isDirectory) currentDir = file else onOpenFile(file)
+                            if (file.isDirectory) currentDirPath = file.absolutePath else onOpenFile(file)
                         }
                     )
                 }

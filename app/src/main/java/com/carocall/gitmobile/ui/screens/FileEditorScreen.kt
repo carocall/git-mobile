@@ -96,7 +96,7 @@ fun NovelEditor(file: File, onBack: () -> Unit) {
             )
         }
     ) { padding ->
-        Surface(modifier = Modifier.fillMaxSize().padding(padding), color = bgColor) {
+        Surface(modifier = Modifier.fillMaxSize().padding(padding).imePadding(), color = bgColor) {
             TextField(
                 value = text,
                 onValueChange = { 

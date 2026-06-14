@@ -65,4 +65,8 @@ dependencies {
     // JGit 核心库
     implementation("org.eclipse.jgit:org.eclipse.jgit:6.10.0.202406032230-r")
 
+    // Sora Editor
+    implementation(libs.sora.editor)
+    implementation(libs.sora.language.textmate)
+    implementation(libs.sora.lang.java)
 }

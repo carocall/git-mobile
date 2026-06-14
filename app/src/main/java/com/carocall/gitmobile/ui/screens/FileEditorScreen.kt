@@ -20,6 +20,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextIndent
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
@@ -27,6 +28,12 @@ import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
 import com.carocall.gitmobile.utils.isBinaryFile
 import com.carocall.gitmobile.utils.openFileExternally
+import io.github.rosemoe.sora.langs.java.JavaLanguage
+import io.github.rosemoe.sora.langs.textmate.TextMateLanguage
+import io.github.rosemoe.sora.widget.CodeEditor as SoraEditor
+import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
+import io.github.rosemoe.sora.text.ContentListener
+import io.github.rosemoe.sora.text.Content
 import java.io.File
 
 /**
@@ -42,7 +49,7 @@ fun FileEditorScreen(file: File, onBack: () -> Unit) {
         
         // 2. 通用文本 (代码, 配置, Markdown 等)
         ext in listOf("java", "kt", "py", "md", "xml", "json", "yaml", "toml", "properties", "gradle", "kts", "c", "cpp", "h", "js", "ts", "sh") -> 
-            CodeEditor(file, onBack)
+            SoraCodeEditor(file, onBack)
         
         // 3. 图片预览
         ext in listOf("jpg", "jpeg", "png", "webp", "gif", "bmp") -> 
@@ -57,7 +64,7 @@ fun FileEditorScreen(file: File, onBack: () -> Unit) {
             if (isBinaryFile(file)) {
                 BinaryInfoViewer(file, onBack)
             } else {
-                CodeEditor(file, onBack)
+                SoraCodeEditor(file, onBack)
             }
         }
     }
@@ -137,15 +144,15 @@ fun NovelEditor(file: File, onBack: () -> Unit) {
     }
 }
 
-// --- 2. 通用代码/文本编辑器 ---
+// --- 2. Sora 代码/文本编辑器 ---
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CodeEditor(file: File, onBack: () -> Unit) {
-    var text by remember { mutableStateOf(file.readText()) }
-    var original by remember { mutableStateOf(text) }
-    val lines = text.lines()
-    val horizontalScrollState = rememberScrollState()
+fun SoraCodeEditor(file: File, onBack: () -> Unit) {
+    var originalText by remember { mutableStateOf(file.readText()) }
+    var editorInstance by remember { mutableStateOf<SoraEditor?>(null) }
+    var hasChanges by remember { mutableStateOf(false) }
+    val isDark = isSystemInDarkTheme()
 
     Scaffold(
         topBar = {
@@ -153,34 +160,70 @@ fun CodeEditor(file: File, onBack: () -> Unit) {
                 title = { Text(file.name, fontSize = 14.sp) },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) } },
                 actions = {
-                    IconButton(onClick = { file.writeText(text); original = text }, enabled = text != original) { Icon(Icons.Default.Save, null) }
+                    IconButton(
+                        onClick = {
+                            editorInstance?.let { editor ->
+                                val text = editor.text.toString()
+                                file.writeText(text)
+                                originalText = text
+                                hasChanges = false
+                            }
+                        },
+                        enabled = hasChanges
+                    ) { Icon(Icons.Default.Save, null) }
                 }
             )
         }
     ) { padding ->
-        Row(Modifier.padding(padding).fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
-            // 简单的行号列
-            Column(Modifier.width(40.dp).fillMaxHeight().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)).padding(top = 16.dp), horizontalAlignment = Alignment.End) {
-                for (i in 1..lines.size) {
-                    Text("$i ", fontSize = 12.sp, color = Color.Gray, fontFamily = FontFamily.Monospace, modifier = Modifier.height(20.dp))
+        AndroidView(
+            modifier = Modifier.padding(padding).fillMaxSize(),
+            factory = { ctx ->
+                SoraEditor(ctx).apply {
+                    setText(originalText)
+                    isLineNumberEnabled = true
+                    
+                    // 设置语言
+                    val ext = file.extension.lowercase()
+                    when (ext) {
+                        "java", "kt", "gradle", "kts" -> setEditorLanguage(JavaLanguage())
+                        "py" -> try { setEditorLanguage(TextMateLanguage.create("source.python", true)) } catch (e: Exception) {}
+                        "js" -> try { setEditorLanguage(TextMateLanguage.create("source.js", true)) } catch (e: Exception) {}
+                        "ts" -> try { setEditorLanguage(TextMateLanguage.create("source.ts", true)) } catch (e: Exception) {}
+                        "json" -> try { setEditorLanguage(TextMateLanguage.create("source.json", true)) } catch (e: Exception) {}
+                        "md" -> try { setEditorLanguage(TextMateLanguage.create("text.html.markdown", true)) } catch (e: Exception) {}
+                        "xml" -> try { setEditorLanguage(TextMateLanguage.create("text.xml", true)) } catch (e: Exception) {}
+                    }
+                    
+                    // 主题适配
+                    colorScheme = if (isDark) {
+                        EditorColorScheme().apply {
+                            setColor(EditorColorScheme.WHOLE_BACKGROUND, Color(0xFF1E1E1E).toArgb())
+                            setColor(EditorColorScheme.TEXT_NORMAL, Color.LightGray.toArgb())
+                            setColor(EditorColorScheme.LINE_NUMBER_BACKGROUND, Color(0xFF252526).toArgb())
+                            setColor(EditorColorScheme.LINE_NUMBER, Color(0xFF858585).toArgb())
+                        }
+                    } else {
+                        EditorColorScheme()
+                    }
+                    
+                    // 监听内容变化
+                    getText().addContentListener(object : ContentListener {
+                        override fun beforeReplace(content: Content) {}
+                        override fun afterInsert(content: Content, startLine: Int, startColumn: Int, endLine: Int, endColumn: Int, insertedContent: CharSequence) {
+                            hasChanges = content.toString() != originalText
+                        }
+                        override fun afterDelete(content: Content, startLine: Int, startColumn: Int, endLine: Int, endColumn: Int, deletedContent: CharSequence) {
+                            hasChanges = content.toString() != originalText
+                        }
+                    })
+                    
+                    editorInstance = this
                 }
+            },
+            update = { view ->
+                view.colorScheme = if (isDark) EditorColorScheme() else EditorColorScheme()
             }
-            
-            Box(Modifier.fillMaxSize().horizontalScroll(horizontalScrollState)) {
-                TextField(
-                    value = text,
-                    onValueChange = { text = it },
-                    modifier = Modifier.fillMaxHeight().width(2000.dp), // 使用较大宽度模拟不换行
-                    textStyle = TextStyle(fontSize = 14.sp, fontFamily = FontFamily.Monospace, lineHeight = 20.sp),
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = Color.Transparent,
-                        unfocusedContainerColor = Color.Transparent,
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent
-                    )
-                )
-            }
-        }
+        )
     }
 }
 

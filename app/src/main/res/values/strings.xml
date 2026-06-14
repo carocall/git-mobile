@@ -10,6 +10,15 @@
     <string name="language_select_title">Select Language</string>
     <string name="cancel">Cancel</string>
     <string name="settings_repo_sort">Repository Sort</string>
+    <string name="settings_general">General</string>
+    <string name="settings_about_group">About</string>
+    <string name="theme_system">System</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="select_theme">Select Theme</string>
+    <string name="theme_follow_system">Follow System</string>
+    <string name="theme_light_mode">Light Mode</string>
+    <string name="theme_dark_mode">Dark Mode</string>
     <string name="sort_by_time">Sort by Time</string>
     <string name="sort_by_name">Sort by Name</string>
     <string name="workspace_title">My Workspace</string>

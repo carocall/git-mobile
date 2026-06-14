@@ -10,6 +10,15 @@
     <string name="language_select_title">选择语言</string>
     <string name="cancel">取消</string>
     <string name="settings_repo_sort">仓库排序</string>
+    <string name="settings_general">常规</string>
+    <string name="settings_about_group">关于</string>
+    <string name="theme_system">系统默认</string>
+    <string name="theme_light">浅色</string>
+    <string name="theme_dark">深色</string>
+    <string name="select_theme">选择主题</string>
+    <string name="theme_follow_system">跟随系统</string>
+    <string name="theme_light_mode">浅色模式</string>
+    <string name="theme_dark_mode">深色模式</string>
     <string name="sort_by_time">按时间排序</string>
     <string name="sort_by_name">按名称排序</string>
     <string name="workspace_title">我的工作区</string>

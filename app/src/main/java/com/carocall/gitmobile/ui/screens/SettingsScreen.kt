@@ -57,7 +57,7 @@ fun SettingsScreen(
                 .padding(padding)
                 .padding(16.dp)
         ) {
-            SettingGroup(title = "General") {
+            SettingGroup(title = stringResource(R.string.settings_general)) {
                 SettingItem(
                     title = stringResource(R.string.settings_repo_sort),
                     subtitle = when (currentSortOrder) {
@@ -82,9 +82,9 @@ fun SettingsScreen(
                 SettingItem(
                     title = stringResource(R.string.settings_theme),
                     subtitle = when (currentTheme) {
-                        ThemeMode.SYSTEM -> "System"
-                        ThemeMode.LIGHT -> "Light"
-                        ThemeMode.DARK -> "Dark"
+                        ThemeMode.SYSTEM -> stringResource(R.string.theme_system)
+                        ThemeMode.LIGHT -> stringResource(R.string.theme_light)
+                        ThemeMode.DARK -> stringResource(R.string.theme_dark)
                     },
                     icon = Icons.Default.Palette,
                     onClick = { showThemeDialog = true },
@@ -92,7 +92,7 @@ fun SettingsScreen(
                 )
             }
 
-            SettingGroup(title = "About") {
+            SettingGroup(title = stringResource(R.string.settings_about_group)) {
                 SettingItem(
                     title = stringResource(R.string.settings_about),
                     icon = Icons.Default.Info,
@@ -222,14 +222,14 @@ fun ThemeSelectionDialog(
     onThemeSelected: (ThemeMode) -> Unit
 ) {
     val themes = listOf(
-        ThemeMode.SYSTEM to "Follow System",
-        ThemeMode.LIGHT to "Light Mode",
-        ThemeMode.DARK to "Dark Mode"
+        ThemeMode.SYSTEM to stringResource(R.string.theme_follow_system),
+        ThemeMode.LIGHT to stringResource(R.string.theme_light_mode),
+        ThemeMode.DARK to stringResource(R.string.theme_dark_mode)
     )
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Select Theme") },
+        title = { Text(stringResource(R.string.select_theme)) },
         text = {
             Column(Modifier.selectableGroup()) {
                 themes.forEach { (mode, label) ->

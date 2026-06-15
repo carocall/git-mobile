@@ -74,6 +74,40 @@ object GitManager {
         } catch (e: Exception) { Result.failure(e) }
     }
 
+    suspend fun discardChanges(repoRoot: File, paths: List<String>): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            Git.open(repoRoot).use { git ->
+                val status = git.status().call()
+                val toCheckout = mutableListOf<String>()
+                val toDelete = mutableListOf<String>()
+
+                for (path in paths) {
+                    if (status.untracked.contains(path) || status.untrackedFolders.any { path.startsWith(it) }) {
+                        toDelete.add(path)
+                    } else {
+                        toCheckout.add(path)
+                    }
+                }
+
+                if (toCheckout.isNotEmpty()) {
+                    val checkoutCmd = git.checkout()
+                    toCheckout.forEach { checkoutCmd.addPath(it) }
+                    checkoutCmd.call()
+                }
+
+                if (toDelete.isNotEmpty()) {
+                    toDelete.forEach { path ->
+                        val file = File(repoRoot, path)
+                        if (file.exists()) {
+                            if (file.isDirectory) file.deleteRecursively() else file.delete()
+                        }
+                    }
+                }
+                Result.success(Unit)
+            }
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
     suspend fun getStatus(repoRoot: File): RepoStatus = withContext(Dispatchers.IO) {
         try {
             Git.open(repoRoot).use { git ->

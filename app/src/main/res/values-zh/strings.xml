@@ -125,4 +125,6 @@
     <string name="branch_create_success">分支 %s 创建成功</string>
     <string name="branch_delete_success">分支 %s 已删除</string>
     <string name="confirm_delete_branch_msg">确定要删除分支 \"%s\" 吗？</string>
+    <string name="discard_changes_confirm_title">放弃更改</string>
+    <string name="discard_changes_confirm_msg">确定要放弃对这 %d 个文件的更改吗？此操作无法撤销。</string>
 </resources>

@@ -11,10 +11,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Sync
-import androidx.compose.material.icons.filled.Upload
+import androidx.compose.material.icons.automirrored.filled.Undo
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.getValue
@@ -63,6 +61,7 @@ fun GitCommitScreen(
     var fileDiffContent by remember { mutableStateOf("") }
     var showChangesDialog by remember { mutableStateOf(false) }
     var showDiffDialog by remember { mutableStateOf(false) }
+    var showDiscardConfirmDialog by remember { mutableStateOf<List<String>?>(null) }
 
     fun refresh() {
         scope.launch {
@@ -340,6 +339,17 @@ fun GitCommitScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(stringResource(R.string.local_changes, status.allChanges.size), modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, color = Color.Gray)
+                            
+                            if (selectedFiles.isNotEmpty()) {
+                                IconButton(
+                                    onClick = { showDiscardConfirmDialog = selectedFiles.toList() },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(Icons.AutoMirrored.Filled.Undo, stringResource(R.string.discard_changes), tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
+                                }
+                                Spacer(Modifier.width(16.dp))
+                            }
+
                             if (status.allChanges.isNotEmpty()) {
                                 val allSelected = selectedFiles.size == status.allChanges.size
                                 Text(
@@ -354,16 +364,30 @@ fun GitCommitScreen(
                         }
                     }
                     items(status.allChanges) { (path, type) ->
-                        Row(Modifier.fillMaxWidth().clickable { selectedFiles = if (selectedFiles.contains(path)) selectedFiles - path else selectedFiles + path }.padding(16.dp, 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(checked = selectedFiles.contains(path), onCheckedChange = { selectedFiles = if (it) selectedFiles + path else selectedFiles - path })
-                            Text(path, modifier = Modifier.weight(1f), fontSize = 14.sp)
-                            val color = when (type) {
-                                "Untracked" -> Color(0xFF4CAF50) // 绿色
-                                "Added" -> Color(0xFF4CAF50)     // 绿色
-                                "Removed" -> Color(0xFFE91E63)   // 红色
-                                else -> Color(0xFF2196F3)        // 蓝色 (Modified)
+                        Row(
+                            Modifier.fillMaxWidth().clickable { 
+                                selectedFiles = if (selectedFiles.contains(path)) selectedFiles - path else selectedFiles + path 
+                            }.padding(horizontal = 16.dp, vertical = 4.dp), 
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = selectedFiles.contains(path), 
+                                onCheckedChange = { selectedFiles = if (it) selectedFiles + path else selectedFiles - path },
+                                modifier = Modifier.size(40.dp)
+                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(path, fontSize = 14.sp)
+                                val color = when (type) {
+                                    "Untracked" -> Color(0xFF4CAF50) // 绿色
+                                    "Added" -> Color(0xFF4CAF50)     // 绿色
+                                    "Removed" -> Color(0xFFE91E63)   // 红色
+                                    else -> Color(0xFF2196F3)        // 蓝色 (Modified)
+                                }
+                                Text(type, color = color, style = MaterialTheme.typography.labelSmall)
                             }
-                            Text(type.take(1), color = color, fontWeight = FontWeight.Bold)
+                            IconButton(onClick = { showDiscardConfirmDialog = listOf(path) }) {
+                                Icon(Icons.AutoMirrored.Filled.Undo, null, modifier = Modifier.size(18.dp), tint = Color.Gray)
+                            }
                         }
                     }
                 }
@@ -472,6 +496,37 @@ fun GitCommitScreen(
                     }
                 },
                 confirmButton = { TextButton(onClick = { showDiffDialog = false }) { Text(stringResource(R.string.close)) } }
+            )
+        }
+
+        if (showDiscardConfirmDialog != null) {
+            val paths = showDiscardConfirmDialog!!
+            AlertDialog(
+                onDismissRequest = { showDiscardConfirmDialog = null },
+                title = { Text(stringResource(R.string.discard_changes_confirm_title)) },
+                text = { Text(stringResource(R.string.discard_changes_confirm_msg, paths.size)) },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            scope.launch {
+                                GitManager.discardChanges(repoRoot, paths).onSuccess {
+                                    selectedFiles = selectedFiles - paths.toSet()
+                                    refresh()
+                                    showDiscardConfirmDialog = null
+                                }.onFailure {
+                                    Toast.makeText(context, it.message, Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        }
+                    ) {
+                        Text(stringResource(R.string.confirm), color = MaterialTheme.colorScheme.error)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDiscardConfirmDialog = null }) {
+                        Text(stringResource(R.string.cancel))
+                    }
+                }
             )
         }
 

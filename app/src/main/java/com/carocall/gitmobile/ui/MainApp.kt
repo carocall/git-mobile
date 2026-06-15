@@ -103,12 +103,20 @@ fun MainApp(
                 onGoToRemoteConfig = { repoPath ->
                     val encodedPath = URLEncoder.encode(repoPath, "UTF-8")
                     navController.navigate("remote_config/$encodedPath")
+                },
+                onGoToBranchManagement = { repoPath ->
+                    val encodedPath = URLEncoder.encode(repoPath, "UTF-8")
+                    navController.navigate("branch_management/$encodedPath")
                 }
             )
         }
         composable("remote_config/{repoPath}") { backStackEntry ->
             val path = URLDecoder.decode(backStackEntry.arguments?.getString("repoPath") ?: "", "UTF-8")
             RemoteConfigScreen(repoRoot = File(path), onBack = { navController.popBackStack() })
+        }
+        composable("branch_management/{repoPath}") { backStackEntry ->
+            val path = URLDecoder.decode(backStackEntry.arguments?.getString("repoPath") ?: "", "UTF-8")
+            BranchManagementScreen(repoRoot = File(path), onBack = { navController.popBackStack() })
         }
     }
 }

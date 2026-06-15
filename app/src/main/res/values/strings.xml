@@ -116,4 +116,13 @@
     <string name="confirm_delete_remote">Confirm Delete</string>
     <string name="confirm_delete_remote_msg">Are you sure you want to delete remote configuration \"%s\"?</string>
     <string name="open_file">Open File</string>
+    <string name="branch_management">Branch Management</string>
+    <string name="local_branches">Local</string>
+    <string name="remote_branches">Remote</string>
+    <string name="new_branch">New Branch</string>
+    <string name="create_branch_title">Create New Branch</string>
+    <string name="branch_checkout_success">Switched to branch %s</string>
+    <string name="branch_create_success">Branch %s created</string>
+    <string name="branch_delete_success">Branch %s deleted</string>
+    <string name="confirm_delete_branch_msg">Are you sure you want to delete branch \"%s\"?</string>
 </resources>

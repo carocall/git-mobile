@@ -41,7 +41,8 @@ import java.util.*
 fun GitCommitScreen(
     repoRoot: File, 
     onBack: () -> Unit,
-    onGoToRemoteConfig: (String) -> Unit = {}
+    onGoToRemoteConfig: (String) -> Unit = {},
+    onGoToBranchManagement: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -189,16 +190,16 @@ fun GitCommitScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp)
-                    .clickable {
-                        onGoToRemoteConfig(repoRoot.absolutePath)
-                    },
+                    .padding(16.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
                 )
             ) {
                 Column(Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable { onGoToRemoteConfig(repoRoot.absolutePath) },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Column(Modifier.weight(1f)) {
                             Text(
                                 text = stringResource(R.string.remote_repo),
@@ -242,7 +243,12 @@ fun GitCommitScreen(
                     
                     Spacer(Modifier.height(12.dp))
                     
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable { 
+                            onGoToBranchManagement(repoRoot.absolutePath)
+                        },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Icon(
                             Icons.Default.Sync,
                             contentDescription = null,
@@ -257,35 +263,26 @@ fun GitCommitScreen(
                             fontWeight = FontWeight.Medium
                         )
                     }
-                }
-            }
 
-            // 操作栏：拉取、同步、推送
-            if (remoteConfig.first.isNotBlank()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    TextButton(onClick = { withRemoteConfig(forceAuth = false) { _, u, t -> performPull(u, t) } }) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.Download, null)
-                            Text(stringResource(R.string.pull), fontSize = 12.sp)
-                        }
-                    }
-                    TextButton(onClick = { withRemoteConfig(forceAuth = true) { url, u, t -> performSync(url, u, t) } }) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.Sync, null)
-                            Text(stringResource(R.string.one_click_sync), fontSize = 12.sp)
-                        }
-                    }
-                    TextButton(onClick = { withRemoteConfig(forceAuth = true) { _, u, t -> performPush(u, t) } }) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.Upload, null)
-                            Text(stringResource(R.string.push), fontSize = 12.sp)
+                    if (remoteConfig.first.isNotBlank()) {
+                        Spacer(Modifier.height(16.dp))
+                        HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            IconButton(onClick = { withRemoteConfig(forceAuth = false) { _, u, t -> performPull(u, t) } }) {
+                                Icon(Icons.Default.Download, stringResource(R.string.pull))
+                            }
+                            IconButton(onClick = { withRemoteConfig(forceAuth = true) { url, u, t -> performSync(url, u, t) } }) {
+                                Icon(Icons.Default.Sync, stringResource(R.string.one_click_sync))
+                            }
+                            IconButton(onClick = { withRemoteConfig(forceAuth = true) { _, u, t -> performPush(u, t) } }) {
+                                Icon(Icons.Default.Upload, stringResource(R.string.push))
+                            }
                         }
                     }
                 }
-                HorizontalDivider()
             }
 
             TabRow(

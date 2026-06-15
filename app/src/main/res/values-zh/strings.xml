@@ -116,4 +116,13 @@
     <string name="confirm_delete_remote">确认删除配置</string>
     <string name="confirm_delete_remote_msg">确定要删除远程配置 \"%s\" 吗？</string>
     <string name="open_file">打开文件</string>
+    <string name="branch_management">分支管理</string>
+    <string name="local_branches">本地</string>
+    <string name="remote_branches">远程</string>
+    <string name="new_branch">新建分支</string>
+    <string name="create_branch_title">创建新分支</string>
+    <string name="branch_checkout_success">已切换至分支 %s</string>
+    <string name="branch_create_success">分支 %s 创建成功</string>
+    <string name="branch_delete_success">分支 %s 已删除</string>
+    <string name="confirm_delete_branch_msg">确定要删除分支 \"%s\" 吗？</string>
 </resources>

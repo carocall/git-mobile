@@ -1,11 +1,14 @@
 package com.carocall.gitmobile.data.git
 
+import com.carocall.gitmobile.data.model.BranchInfo
 import com.carocall.gitmobile.data.model.CommitInfo
 import com.carocall.gitmobile.data.model.RepoStatus
 import com.carocall.gitmobile.data.model.RemoteProfile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.eclipse.jgit.api.Git
+import org.eclipse.jgit.api.ListBranchCommand
+import org.eclipse.jgit.lib.Constants
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
 import java.io.File
 
@@ -17,6 +20,57 @@ object GitManager {
     suspend fun initRepo(dir: File): Result<String> = withContext(Dispatchers.IO) {
         try {
             Git.init().setDirectory(dir).call().use { Result.success("初始化成功") }
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
+    suspend fun getBranches(repoRoot: File): List<BranchInfo> = withContext(Dispatchers.IO) {
+        try {
+            Git.open(repoRoot).use { git ->
+                val currentBranch = git.repository.branch
+                val branches = git.branchList().setListMode(ListBranchCommand.ListMode.ALL).call()
+                branches.map { ref ->
+                    val name = ref.name
+                    val shortName = git.repository.shortenRemoteBranchName(name) ?: name.substringAfter(Constants.R_HEADS).substringAfter(Constants.R_REMOTES)
+                    val isCurrent = shortName == currentBranch
+                    val isRemote = name.startsWith(Constants.R_REMOTES)
+                    BranchInfo(
+                        name = shortName,
+                        isCurrent = isCurrent,
+                        isRemote = isRemote,
+                        shortHash = ref.objectId.abbreviate(7).name()
+                    )
+                }
+            }
+        } catch (e: Exception) { emptyList() }
+    }
+
+    suspend fun checkoutBranch(repoRoot: File, branchName: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            Git.open(repoRoot).use { git ->
+                git.checkout().setName(branchName).call()
+                Result.success(Unit)
+            }
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
+    suspend fun createBranch(repoRoot: File, branchName: String, startPoint: String = "HEAD", checkout: Boolean = true): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            Git.open(repoRoot).use { git ->
+                git.branchCreate().setName(branchName).setStartPoint(startPoint).call()
+                if (checkout) {
+                    git.checkout().setName(branchName).call()
+                }
+                Result.success(Unit)
+            }
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
+    suspend fun deleteBranch(repoRoot: File, branchName: String, force: Boolean = false): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            Git.open(repoRoot).use { git ->
+                git.branchDelete().setBranchNames(branchName).setForce(force).call()
+                Result.success(Unit)
+            }
         } catch (e: Exception) { Result.failure(e) }
     }
 

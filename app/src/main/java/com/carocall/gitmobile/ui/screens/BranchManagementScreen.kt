@@ -22,7 +22,7 @@ import androidx.compose.ui.unit.sp
 import com.carocall.gitmobile.R
 import com.carocall.gitmobile.data.git.GitManager
 import com.carocall.gitmobile.data.model.BranchInfo
-import com.carocall.gitmobile.ui.component.InputDialog
+import com.carocall.gitmobile.ui.component.InputSheet
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -106,7 +106,7 @@ fun BranchManagementScreen(repoRoot: File, onBack: () -> Unit) {
         }
 
         if (showCreateDialog) {
-            InputDialog(
+            InputSheet(
                 title = stringResource(R.string.create_branch_title),
                 onDismiss = { showCreateDialog = false },
                 onConfirm = { name ->

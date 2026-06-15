@@ -60,8 +60,8 @@ import androidx.compose.ui.res.stringResource
 import com.carocall.gitmobile.R
 import com.carocall.gitmobile.data.git.GitManager
 import com.carocall.gitmobile.data.model.RepoStatus
-import com.carocall.gitmobile.ui.component.InputDialog
-import com.carocall.gitmobile.ui.component.PushDialog
+import com.carocall.gitmobile.ui.component.FileDetailsSheet
+import com.carocall.gitmobile.ui.component.InputSheet
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -83,6 +83,7 @@ fun RepoExplorerScreen(repoRoot: File, onBackToRepos: () -> Unit, onOpenFile: (F
     // 弹窗状态
     var showCreateDialog by remember { mutableStateOf<Boolean?>(null) } // true: Folder, false: File
     var showRenameDialog by remember { mutableStateOf<File?>(null) }
+    var showDetailsDialog by remember { mutableStateOf<File?>(null) }
 
     fun refresh() {
         files = currentDir.listFiles()?.toList()
@@ -179,6 +180,7 @@ fun RepoExplorerScreen(repoRoot: File, onBackToRepos: () -> Unit, onOpenFile: (F
                             Box {
                                 IconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, null) }
                                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                                    DropdownMenuItem(text = { Text(stringResource(R.string.file_info)) }, onClick = { menuOpen = false; showDetailsDialog = file })
                                     DropdownMenuItem(text = { Text(stringResource(R.string.rename)) }, onClick = { menuOpen = false; showRenameDialog = file })
                                     DropdownMenuItem(text = { Text(stringResource(R.string.delete)) }, onClick = {
                                         menuOpen = false; file.deleteRecursively(); refresh()
@@ -197,16 +199,19 @@ fun RepoExplorerScreen(repoRoot: File, onBackToRepos: () -> Unit, onOpenFile: (F
         // 弹窗处理
         showCreateDialog?.let { isFolder ->
             val typeName = if (isFolder) stringResource(R.string.new_folder) else stringResource(R.string.new_file)
-            InputDialog(title = stringResource(R.string.create_new, typeName), onDismiss = { showCreateDialog = null }, onConfirm = { name ->
+            InputSheet(title = stringResource(R.string.create_new, typeName), onDismiss = { showCreateDialog = null }, onConfirm = { name ->
                 val f = File(currentDir, name)
                 if (isFolder) f.mkdirs() else f.createNewFile()
                 refresh(); showCreateDialog = null
             })
         }
         showRenameDialog?.let { file ->
-            InputDialog(title = stringResource(R.string.rename), initialValue = file.name, onDismiss = { showRenameDialog = null }, onConfirm = { name ->
+            InputSheet(title = stringResource(R.string.rename), initialValue = file.name, onDismiss = { showRenameDialog = null }, onConfirm = { name ->
                 file.renameTo(File(file.parentFile, name)); refresh(); showRenameDialog = null
             })
+        }
+        showDetailsDialog?.let { file ->
+            FileDetailsSheet(file = file, onDismiss = { showDetailsDialog = null })
         }
 
     }

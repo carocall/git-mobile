@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import com.carocall.gitmobile.R
 import com.carocall.gitmobile.data.git.GitManager
 import com.carocall.gitmobile.data.model.RemoteProfile
+import com.carocall.gitmobile.ui.component.RemoteProfileSheet
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -91,7 +92,7 @@ fun RemoteConfigScreen(repoRoot: File, onBack: () -> Unit) {
         }
 
         if (showAddDialog) {
-            RemoteProfileDialog(
+            RemoteProfileSheet(
                 title = stringResource(R.string.add_remote_title),
                 onDismiss = { showAddDialog = false },
                 onConfirm = { name, url, user, token ->
@@ -105,7 +106,7 @@ fun RemoteConfigScreen(repoRoot: File, onBack: () -> Unit) {
         }
 
         if (editingProfile != null) {
-            RemoteProfileDialog(
+            RemoteProfileSheet(
                 title = stringResource(R.string.edit_remote),
                 initialProfile = editingProfile,
                 onDismiss = { editingProfile = null },
@@ -235,69 +236,3 @@ fun RemoteProfileCard(
     }
 }
 
-@Composable
-fun RemoteProfileDialog(
-    title: String,
-    initialProfile: RemoteProfile? = null,
-    onDismiss: () -> Unit,
-    onConfirm: (String, String, String, String) -> Unit
-) {
-    var name by remember { mutableStateOf(initialProfile?.name ?: "") }
-    var url by remember { mutableStateOf(initialProfile?.url ?: "") }
-    var user by remember { mutableStateOf(initialProfile?.user ?: "") }
-    var token by remember { mutableStateOf(initialProfile?.token ?: "") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text(stringResource(R.string.remote_name)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-                OutlinedTextField(
-                    value = url,
-                    onValueChange = { url = it },
-                    label = { Text(stringResource(R.string.https_url)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-                OutlinedTextField(
-                    value = user,
-                    onValueChange = { user = it },
-                    label = { Text(stringResource(R.string.user_optional)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-                OutlinedTextField(
-                    value = token,
-                    onValueChange = { token = it },
-                    label = { Text(stringResource(R.string.token_optional)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    if (name.isNotBlank() && url.isNotBlank()) {
-                        onConfirm(name, url, user, token)
-                    }
-                },
-                enabled = name.isNotBlank() && url.isNotBlank()
-            ) {
-                Text(stringResource(R.string.ok))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.cancel))
-            }
-        }
-    )
-}

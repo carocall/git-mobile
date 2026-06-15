@@ -29,6 +29,8 @@ import com.carocall.gitmobile.R
 import com.carocall.gitmobile.data.git.GitManager
 import com.carocall.gitmobile.data.model.CommitInfo
 import com.carocall.gitmobile.data.model.RepoStatus
+import com.carocall.gitmobile.ui.component.CommitChangesSheet
+import com.carocall.gitmobile.ui.component.DiffSheet
 import kotlinx.coroutines.launch
 import java.io.File
 import java.text.SimpleDateFormat
@@ -452,50 +454,19 @@ fun GitCommitScreen(
         }
 
         if (showChangesDialog) {
-            AlertDialog(
-                onDismissRequest = { showChangesDialog = false },
-                title = { Text(stringResource(R.string.commit_changes_title, selectedCommit?.message?.take(20) ?: "")) },
-                text = {
-                    LazyColumn(Modifier.heightIn(max = 400.dp)) {
-                        items(commitChanges) { (path, type) ->
-                            ListItem(
-                                headlineContent = { Text(path, fontSize = 14.sp) },
-                                trailingContent = { Text(type.take(1), fontWeight = FontWeight.Bold, color = if(type == "ADD") Color(0xFF4CAF50) else Color(0xFFE91E63)) },
-                                modifier = Modifier.clickable { viewFileDiff(selectedCommit!!.id, path) }
-                            )
-                        }
-                    }
-                },
-                confirmButton = { TextButton(onClick = { showChangesDialog = false }) { Text(stringResource(R.string.close)) } }
+            CommitChangesSheet(
+                commit = selectedCommit,
+                changes = commitChanges,
+                onDismiss = { showChangesDialog = false },
+                onFileClick = { path -> viewFileDiff(selectedCommit!!.id, path) }
             )
         }
 
         if (showDiffDialog) {
-            AlertDialog(
-                onDismissRequest = { showDiffDialog = false },
-                title = { Text(stringResource(R.string.change_details, selectedDiffFile?.substringAfterLast("/") ?: "")) },
-                text = {
-                    Box(Modifier.heightIn(max = 500.dp).verticalScroll(rememberScrollState()).horizontalScroll(rememberScrollState())) {
-                        Column {
-                            fileDiffContent.lines().forEach { line ->
-                                val color = when {
-                                    line.startsWith("+") && !line.startsWith("+++") -> Color(0xFF4CAF50)
-                                    line.startsWith("-") && !line.startsWith("---") -> Color(0xFFE91E63)
-                                    line.startsWith("@@") -> Color(0xFF2196F3)
-                                    else -> MaterialTheme.colorScheme.onSurface
-                                }
-                                Text(
-                                    line,
-                                    color = color,
-                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                    fontSize = 12.sp,
-                                    modifier = Modifier.padding(horizontal = 4.dp)
-                                )
-                            }
-                        }
-                    }
-                },
-                confirmButton = { TextButton(onClick = { showDiffDialog = false }) { Text(stringResource(R.string.close)) } }
+            DiffSheet(
+                fileName = selectedDiffFile?.substringAfterLast("/") ?: "",
+                diffContent = fileDiffContent,
+                onDismiss = { showDiffDialog = false }
             )
         }
 

@@ -21,8 +21,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
 import com.carocall.gitmobile.R
 import com.carocall.gitmobile.data.git.GitManager
-import com.carocall.gitmobile.ui.component.CloneDialog
-import com.carocall.gitmobile.ui.component.InputDialog
+import com.carocall.gitmobile.ui.component.CloneSheet
+import com.carocall.gitmobile.ui.component.InputSheet
 import kotlinx.coroutines.launch
 import java.io.File
 import java.text.SimpleDateFormat
@@ -147,7 +147,7 @@ fun RepoListScreen(
         }
 
         if (showCreateDialog) {
-            InputDialog(title = stringResource(R.string.create_new_project), onDismiss = { showCreateDialog = false }, onConfirm = { name ->
+            InputSheet(title = stringResource(R.string.create_new_project), onDismiss = { showCreateDialog = false }, onConfirm = { name ->
                 val f = File(rootDir, name)
                 if (f.mkdirs()) {
                     scope.launch {
@@ -161,7 +161,7 @@ fun RepoListScreen(
 
         if (showRenameDialog != null) {
             val repo = showRenameDialog!!
-            InputDialog(title = stringResource(R.string.rename_project_title), initialValue = repo.name, onDismiss = { showRenameDialog = null }, onConfirm = { newName ->
+            InputSheet(title = stringResource(R.string.rename_project_title), initialValue = repo.name, onDismiss = { showRenameDialog = null }, onConfirm = { newName ->
                 val dest = File(repo.parentFile, newName)
                 if (repo.renameTo(dest)) {
                     refreshRepos()
@@ -173,7 +173,7 @@ fun RepoListScreen(
         }
 
         if (showCloneDialog) {
-            CloneDialog(onDismiss = { showCloneDialog = false }, onConfirm = { url, name, branch, user, token ->
+            CloneSheet(onDismiss = { showCloneDialog = false }, onConfirm = { url, name, branch, user, token ->
                 val f = File(rootDir, name)
                 if (f.exists()) {
                     Toast.makeText(context, context.getString(R.string.dir_already_exists), Toast.LENGTH_SHORT).show()

@@ -104,6 +104,7 @@
     <string name="remote_config_title">远程配置</string>
     <string name="add_remote">添加远程</string>
     <string name="use_remote">使用</string>
+    <string name="edit_remote">修改</string>
     <string name="identity_label">身份</string>
     <string name="url_label">地址: %s</string>
     <string name="user_label">用户: %s</string>
@@ -112,5 +113,7 @@
     <string name="add_remote_title">添加远程配置</string>
     <string name="remote_name">配置名称 (如: GitHub)</string>
     <string name="auth_missing">该仓库未配置身份</string>
+    <string name="confirm_delete_remote">确认删除配置</string>
+    <string name="confirm_delete_remote_msg">确定要删除远程配置 \"%s\" 吗？</string>
     <string name="open_file">打开文件</string>
 </resources>

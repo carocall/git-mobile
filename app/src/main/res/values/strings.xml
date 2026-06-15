@@ -104,6 +104,7 @@
     <string name="remote_config_title">Remote Configuration</string>
     <string name="add_remote">Add Remote</string>
     <string name="use_remote">Use</string>
+    <string name="edit_remote">Edit</string>
     <string name="identity_label">Identity</string>
     <string name="url_label">URL: %s</string>
     <string name="user_label">User: %s</string>
@@ -112,5 +113,7 @@
     <string name="add_remote_title">Add Remote Configuration</string>
     <string name="remote_name">Configuration Name (e.g. GitHub)</string>
     <string name="auth_missing">No identity configured for this repository</string>
+    <string name="confirm_delete_remote">Confirm Delete</string>
+    <string name="confirm_delete_remote_msg">Are you sure you want to delete remote configuration \"%s\"?</string>
     <string name="open_file">Open File</string>
 </resources>

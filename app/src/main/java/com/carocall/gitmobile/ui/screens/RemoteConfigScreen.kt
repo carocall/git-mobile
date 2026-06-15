@@ -8,6 +8,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,11 +18,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.carocall.gitmobile.R
 import com.carocall.gitmobile.data.git.GitManager
 import com.carocall.gitmobile.data.model.RemoteProfile
-import com.carocall.gitmobile.ui.component.InputDialog
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -31,6 +30,8 @@ fun RemoteConfigScreen(repoRoot: File, onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var profiles by remember { mutableStateOf<List<RemoteProfile>>(emptyList()) }
+    var editingProfile by remember { mutableStateOf<RemoteProfile?>(null) }
+    var profileToDelete by remember { mutableStateOf<RemoteProfile?>(null) }
     var showAddDialog by remember { mutableStateOf(false) }
 
     fun refresh() {
@@ -48,11 +49,6 @@ fun RemoteConfigScreen(repoRoot: File, onBack: () -> Unit) {
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back))
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { showAddDialog = true }) {
-                        Icon(Icons.Default.Add, stringResource(R.string.add_remote))
                     }
                 }
             )
@@ -74,11 +70,9 @@ fun RemoteConfigScreen(repoRoot: File, onBack: () -> Unit) {
                                 onBack()
                             }
                         },
+                        onEdit = { editingProfile = profile },
                         onDelete = {
-                            scope.launch {
-                                GitManager.deleteRemoteProfile(repoRoot, profile.name)
-                                refresh()
-                            }
+                            profileToDelete = profile
                         }
                     )
                 }
@@ -97,13 +91,59 @@ fun RemoteConfigScreen(repoRoot: File, onBack: () -> Unit) {
         }
 
         if (showAddDialog) {
-            AddRemoteProfileDialog(
+            RemoteProfileDialog(
+                title = stringResource(R.string.add_remote_title),
                 onDismiss = { showAddDialog = false },
                 onConfirm = { name, url, user, token ->
                     scope.launch {
                         GitManager.saveRemoteProfile(repoRoot, RemoteProfile(name, url, user, token))
                         refresh()
                         showAddDialog = false
+                    }
+                }
+            )
+        }
+
+        if (editingProfile != null) {
+            RemoteProfileDialog(
+                title = stringResource(R.string.edit_remote),
+                initialProfile = editingProfile,
+                onDismiss = { editingProfile = null },
+                onConfirm = { name, url, user, token ->
+                    scope.launch {
+                        if (name != editingProfile?.name) {
+                            GitManager.deleteRemoteProfile(repoRoot, editingProfile!!.name)
+                        }
+                        GitManager.saveRemoteProfile(repoRoot, RemoteProfile(name, url, user, token))
+                        refresh()
+                        editingProfile = null
+                    }
+                }
+            )
+        }
+
+        if (profileToDelete != null) {
+            AlertDialog(
+                onDismissRequest = { profileToDelete = null },
+                title = { Text(stringResource(R.string.confirm_delete_remote)) },
+                text = { Text(stringResource(R.string.confirm_delete_remote_msg, profileToDelete!!.name)) },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            val name = profileToDelete!!.name
+                            scope.launch {
+                                GitManager.deleteRemoteProfile(repoRoot, name)
+                                refresh()
+                                profileToDelete = null
+                            }
+                        }
+                    ) {
+                        Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { profileToDelete = null }) {
+                        Text(stringResource(R.string.cancel))
                     }
                 }
             )
@@ -115,6 +155,7 @@ fun RemoteConfigScreen(repoRoot: File, onBack: () -> Unit) {
 fun RemoteProfileCard(
     profile: RemoteProfile,
     onUse: () -> Unit,
+    onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
     Card(
@@ -169,30 +210,46 @@ fun RemoteProfileCard(
             
             Spacer(Modifier.height(12.dp))
             
-            Button(
-                onClick = onUse,
-                modifier = Modifier.align(Alignment.End),
-                contentPadding = PaddingValues(horizontal = 24.dp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(stringResource(R.string.use_remote))
+                TextButton(
+                    onClick = onEdit,
+                    modifier = Modifier.padding(end = 8.dp)
+                ) {
+                    Icon(Icons.Default.Edit, null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text(stringResource(R.string.edit_remote))
+                }
+                
+                Button(
+                    onClick = onUse,
+                    contentPadding = PaddingValues(horizontal = 24.dp)
+                ) {
+                    Text(stringResource(R.string.use_remote))
+                }
             }
         }
     }
 }
 
 @Composable
-fun AddRemoteProfileDialog(
+fun RemoteProfileDialog(
+    title: String,
+    initialProfile: RemoteProfile? = null,
     onDismiss: () -> Unit,
     onConfirm: (String, String, String, String) -> Unit
 ) {
-    var name by remember { mutableStateOf("") }
-    var url by remember { mutableStateOf("") }
-    var user by remember { mutableStateOf("") }
-    var token by remember { mutableStateOf("") }
+    var name by remember { mutableStateOf(initialProfile?.name ?: "") }
+    var url by remember { mutableStateOf(initialProfile?.url ?: "") }
+    var user by remember { mutableStateOf(initialProfile?.user ?: "") }
+    var token by remember { mutableStateOf(initialProfile?.token ?: "") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.add_remote_title)) },
+        title = { Text(title) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(

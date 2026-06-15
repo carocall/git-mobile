@@ -31,7 +31,6 @@ import com.carocall.gitmobile.R
 import com.carocall.gitmobile.data.git.GitManager
 import com.carocall.gitmobile.data.model.CommitInfo
 import com.carocall.gitmobile.data.model.RepoStatus
-import com.carocall.gitmobile.ui.component.PushDialog
 import kotlinx.coroutines.launch
 import java.io.File
 import java.text.SimpleDateFormat
@@ -39,7 +38,11 @@ import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
+fun GitCommitScreen(
+    repoRoot: File, 
+    onBack: () -> Unit,
+    onGoToRemoteConfig: (String) -> Unit = {}
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var status by remember { mutableStateOf(RepoStatus()) }
@@ -49,7 +52,6 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
 
     var sessionToken by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
-    var showConfigDialog by remember { mutableStateOf(false) }
     var remoteConfig by remember { mutableStateOf(Triple("", "", "")) }
     var selectedTabIndex by remember { mutableIntStateOf(0) }
 
@@ -103,9 +105,9 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
             val currentToken = if (sessionToken.isBlank()) savedToken else sessionToken
             
             if (url.isBlank()) {
-                showConfigDialog = true
+                onGoToRemoteConfig(repoRoot.absolutePath)
             } else if (forceAuth && (user.isBlank() || currentToken.isBlank())) {
-                showConfigDialog = true
+                onGoToRemoteConfig(repoRoot.absolutePath)
             } else {
                 action(url, user, currentToken)
             }
@@ -123,7 +125,7 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
                 val msg = e.message ?: ""
                 if (msg.contains("not authorized", ignoreCase = true) || msg.contains("auth", ignoreCase = true)) {
                     Toast.makeText(context, context.getString(R.string.auth_required), Toast.LENGTH_SHORT).show()
-                    showConfigDialog = true
+                    onGoToRemoteConfig(repoRoot.absolutePath)
                 } else {
                     Toast.makeText(context, context.getString(R.string.pull_failed, msg), Toast.LENGTH_LONG).show()
                 }
@@ -143,7 +145,7 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
                 val msg = e.message ?: ""
                 if (msg.contains("not authorized", ignoreCase = true) || msg.contains("auth", ignoreCase = true)) {
                     Toast.makeText(context, context.getString(R.string.auth_required), Toast.LENGTH_SHORT).show()
-                    showConfigDialog = true
+                    onGoToRemoteConfig(repoRoot.absolutePath)
                 } else {
                     Toast.makeText(context, context.getString(R.string.push_failed, msg), Toast.LENGTH_LONG).show()
                 }
@@ -163,7 +165,7 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
                 val msg = e.message ?: ""
                 if (msg.contains("not authorized", ignoreCase = true) || msg.contains("auth", ignoreCase = true)) {
                     Toast.makeText(context, context.getString(R.string.auth_required), Toast.LENGTH_SHORT).show()
-                    showConfigDialog = true
+                    onGoToRemoteConfig(repoRoot.absolutePath)
                 } else {
                     Toast.makeText(context, context.getString(R.string.sync_failed, msg), Toast.LENGTH_LONG).show()
                 }
@@ -189,10 +191,7 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
                     .fillMaxWidth()
                     .padding(16.dp)
                     .clickable {
-                        scope.launch {
-                            remoteConfig = GitManager.getRemoteConfig(repoRoot)
-                            showConfigDialog = true
-                        }
+                        onGoToRemoteConfig(repoRoot.absolutePath)
                     },
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
@@ -476,23 +475,6 @@ fun GitCommitScreen(repoRoot: File, onBack: () -> Unit) {
                     }
                 },
                 confirmButton = { TextButton(onClick = { showDiffDialog = false }) { Text(stringResource(R.string.close)) } }
-            )
-        }
-
-        if (showConfigDialog) {
-            PushDialog(
-                initialUrl = remoteConfig.first,
-                initialUser = remoteConfig.second,
-                initialToken = remoteConfig.third.ifBlank { sessionToken },
-                onDismiss = { showConfigDialog = false },
-                onConfirm = { url, user, token ->
-                    showConfigDialog = false
-                    scope.launch {
-                        GitManager.saveRemoteConfig(repoRoot, url, user, token)
-                        refresh()
-                        Toast.makeText(context, context.getString(R.string.remote_config_saved), Toast.LENGTH_SHORT).show()
-                    }
-                }
             )
         }
 

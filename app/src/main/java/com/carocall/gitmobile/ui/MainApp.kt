@@ -97,7 +97,18 @@ fun MainApp(
         }
         composable("git_commit/{repoPath}") { backStackEntry ->
             val path = URLDecoder.decode(backStackEntry.arguments?.getString("repoPath") ?: "", "UTF-8")
-            GitCommitScreen(repoRoot = File(path), onBack = { navController.popBackStack() })
+            GitCommitScreen(
+                repoRoot = File(path),
+                onBack = { navController.popBackStack() },
+                onGoToRemoteConfig = { repoPath ->
+                    val encodedPath = URLEncoder.encode(repoPath, "UTF-8")
+                    navController.navigate("remote_config/$encodedPath")
+                }
+            )
+        }
+        composable("remote_config/{repoPath}") { backStackEntry ->
+            val path = URLDecoder.decode(backStackEntry.arguments?.getString("repoPath") ?: "", "UTF-8")
+            RemoteConfigScreen(repoRoot = File(path), onBack = { navController.popBackStack() })
         }
     }
 }

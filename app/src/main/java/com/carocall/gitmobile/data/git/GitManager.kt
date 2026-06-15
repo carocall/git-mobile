@@ -2,6 +2,7 @@ package com.carocall.gitmobile.data.git
 
 import com.carocall.gitmobile.data.model.CommitInfo
 import com.carocall.gitmobile.data.model.RepoStatus
+import com.carocall.gitmobile.data.model.RemoteProfile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.eclipse.jgit.api.Git
@@ -91,6 +92,45 @@ object GitManager {
         } catch (e: Exception) { }
     }
 
+    suspend fun getRemoteProfiles(repoRoot: File): List<RemoteProfile> = withContext(Dispatchers.IO) {
+        try {
+            Git.open(repoRoot).use { git ->
+                val config = git.repository.config
+                val subsections = config.getSubsections("gitmobile-profile")
+                subsections.map { name ->
+                    RemoteProfile(
+                        name = name,
+                        url = config.getString("gitmobile-profile", name, "url") ?: "",
+                        user = config.getString("gitmobile-profile", name, "user") ?: "",
+                        token = config.getString("gitmobile-profile", name, "token") ?: ""
+                    )
+                }
+            }
+        } catch (e: Exception) { emptyList() }
+    }
+
+    suspend fun saveRemoteProfile(repoRoot: File, profile: RemoteProfile) = withContext(Dispatchers.IO) {
+        try {
+            Git.open(repoRoot).use { git ->
+                val config = git.repository.config
+                config.setString("gitmobile-profile", profile.name, "url", profile.url)
+                config.setString("gitmobile-profile", profile.name, "user", profile.user)
+                config.setString("gitmobile-profile", profile.name, "token", profile.token)
+                config.save()
+            }
+        } catch (e: Exception) { }
+    }
+
+    suspend fun deleteRemoteProfile(repoRoot: File, name: String) = withContext(Dispatchers.IO) {
+        try {
+            Git.open(repoRoot).use { git ->
+                val config = git.repository.config
+                config.unsetSection("gitmobile-profile", name)
+                config.save()
+            }
+        } catch (e: Exception) { }
+    }
+
     suspend fun pull(repoRoot: File, username: String, token: String): Result<String> = withContext(Dispatchers.IO) {
         try {
             Git.open(repoRoot).use { git ->
@@ -105,12 +145,13 @@ object GitManager {
     }
 
     suspend fun push(repoRoot: File, username: String, token: String): Result<String> = withContext(Dispatchers.IO) {
+        if (username.isBlank() || token.isBlank()) {
+            return@withContext Result.failure(Exception("该仓库未配置身份"))
+        }
         try {
             Git.open(repoRoot).use { git ->
                 val pushCmd = git.push().setRemote("origin")
-                if (username.isNotBlank() && token.isNotBlank()) {
-                    pushCmd.setCredentialsProvider(UsernamePasswordCredentialsProvider(username, token))
-                }
+                pushCmd.setCredentialsProvider(UsernamePasswordCredentialsProvider(username, token))
                 pushCmd.call()
                 Result.success("推送成功")
             }
@@ -118,16 +159,17 @@ object GitManager {
     }
 
     suspend fun sync(repoRoot: File, remoteUrl: String, username: String, token: String): Result<String> = withContext(Dispatchers.IO) {
+        if (username.isBlank() || token.isBlank()) {
+            return@withContext Result.failure(Exception("该仓库未配置身份"))
+        }
         try {
             Git.open(repoRoot).use { git ->
-                val cp = if (username.isNotBlank() && token.isNotBlank()) {
-                    UsernamePasswordCredentialsProvider(username, token)
-                } else null
+                val cp = UsernamePasswordCredentialsProvider(username, token)
 
                 // 1. 先尝试 Pull (拉取)
                 try {
                     val pullCmd = git.pull().setRemote("origin")
-                    if (cp != null) pullCmd.setCredentialsProvider(cp)
+                    pullCmd.setCredentialsProvider(cp)
                     pullCmd.call()
                 } catch (e: Exception) {
                     // 忽略拉取错误（例如由于历史不相关导致的失败）
@@ -135,13 +177,11 @@ object GitManager {
 
                 // 2. 再执行 Push (推送)
                 val pushCmd = git.push().setRemote("origin")
-                if (cp != null) pushCmd.setCredentialsProvider(cp)
+                pushCmd.setCredentialsProvider(cp)
                 pushCmd.call()
 
-                // 3. 只有当 Push 成功没有抛出异常时，且提供了认证信息，才保存配置到本地
-                if (username.isNotBlank() && token.isNotBlank()) {
-                    saveRemoteConfig(repoRoot, remoteUrl, username, token)
-                }
+                // 3. 只有当 Push 成功没有抛出异常时，保存配置到本地
+                saveRemoteConfig(repoRoot, remoteUrl, username, token)
 
                 Result.success("同步成功")
             }
@@ -174,9 +214,10 @@ object GitManager {
             }
 
             cloneCommand.call().use { _ ->
-                // 克隆成功后，如果有认证信息，保存认证信息到本地 Git 配置中（方便后续同步）
+                // 克隆成功后，如果有认证信息，保存认证信息到本地 Git 配置中，并放入远程列表
                 if (!username.isNullOrBlank() && !token.isNullOrBlank()) {
                     saveRemoteConfig(dir, url, username, token)
+                    saveRemoteProfile(dir, RemoteProfile(name = "Default", url = url, user = username, token = token))
                 }
                 Result.success("克隆成功")
             }

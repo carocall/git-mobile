@@ -101,5 +101,16 @@
     <string name="username">Username</string>
     <string name="token_password">Access Token / Password</string>
     <string name="private_project">Private Project</string>
+    <string name="remote_config_title">Remote Configuration</string>
+    <string name="add_remote">Add Remote</string>
+    <string name="use_remote">Use</string>
+    <string name="identity_label">Identity</string>
+    <string name="url_label">URL: %s</string>
+    <string name="user_label">User: %s</string>
+    <string name="token_label">Token: ******</string>
+    <string name="no_identity">No Identity (Public)</string>
+    <string name="add_remote_title">Add Remote Configuration</string>
+    <string name="remote_name">Configuration Name (e.g. GitHub)</string>
+    <string name="auth_missing">No identity configured for this repository</string>
     <string name="open_file">Open File</string>
 </resources>

@@ -387,4 +387,40 @@ object GitManager {
             }
         } catch (e: Exception) { "无法获取 Diff" }
     }
+
+    suspend fun addTag(repoRoot: File, tagName: String, commitId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            Git.open(repoRoot).use { git ->
+                git.tag().setName(tagName).setObjectId(git.repository.parseCommit(git.repository.resolve(commitId))).call()
+                Result.success(Unit)
+            }
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
+    suspend fun checkoutCommit(repoRoot: File, commitId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            Git.open(repoRoot).use { git ->
+                git.checkout().setName(commitId).call()
+                Result.success(Unit)
+            }
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
+    suspend fun cherryPick(repoRoot: File, commitId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            Git.open(repoRoot).use { git ->
+                git.cherryPick().include(git.repository.resolve(commitId)).call()
+                Result.success(Unit)
+            }
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
+    suspend fun revertCommit(repoRoot: File, commitId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            Git.open(repoRoot).use { git ->
+                git.revert().include(git.repository.resolve(commitId)).call()
+                Result.success(Unit)
+            }
+        } catch (e: Exception) { Result.failure(e) }
+    }
 }

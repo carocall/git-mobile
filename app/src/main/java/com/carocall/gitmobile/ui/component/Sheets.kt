@@ -7,6 +7,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -224,7 +226,8 @@ fun CommitChangesSheet(
     commit: CommitInfo?,
     changes: List<Pair<String, String>>,
     onDismiss: () -> Unit,
-    onFileClick: (String) -> Unit
+    onFileClick: (String) -> Unit,
+    onAction: (String) -> Unit // TAG, BRANCH, CHECKOUT, CHERRY_PICK, REVERT, DROP
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
@@ -232,12 +235,75 @@ fun CommitChangesSheet(
                 .fillMaxWidth()
                 .padding(bottom = 32.dp)
         ) {
-            Text(
-                stringResource(R.string.commit_changes_title, commit?.message?.take(20) ?: ""),
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)
-            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    stringResource(R.string.commit_changes_title, commit?.message?.take(20) ?: ""),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
+                )
+                
+                var menuExpanded by remember { mutableStateOf(false) }
+                Box {
+                    IconButton(onClick = { menuExpanded = true }) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "Actions")
+                    }
+                    DropdownMenu(
+                        expanded = menuExpanded,
+                        onDismissRequest = { menuExpanded = false }
+                    ) {
+                        Text(
+                            "Tagging & Branching",
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Add Tag...") },
+                            onClick = { menuExpanded = false; onAction("TAG") },
+                            leadingIcon = { Icon(Icons.Default.Tag, null) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Create Branch...") },
+                            onClick = { menuExpanded = false; onAction("BRANCH") },
+                            leadingIcon = { Icon(Icons.Default.CallSplit, null) }
+                        )
+                        HorizontalDivider()
+                        Text(
+                            "Checkout & Apply",
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Checkout...") },
+                            onClick = { menuExpanded = false; onAction("CHECKOUT") },
+                            leadingIcon = { Icon(Icons.Default.Login, null) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Cherry Pick...") },
+                            onClick = { menuExpanded = false; onAction("CHERRY_PICK") },
+                            leadingIcon = { Icon(Icons.Default.ContentPaste, null) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Revert...") },
+                            onClick = { menuExpanded = false; onAction("REVERT") },
+                            leadingIcon = { Icon(Icons.Default.SettingsBackupRestore, null) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Drop...", color = MaterialTheme.colorScheme.error) },
+                            onClick = { menuExpanded = false; onAction("DROP") },
+                            leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) }
+                        )
+                    }
+                }
+            }
             
             LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
                 items(changes) { (path, type) ->

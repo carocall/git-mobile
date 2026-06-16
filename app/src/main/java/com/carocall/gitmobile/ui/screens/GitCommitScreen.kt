@@ -31,6 +31,7 @@ import com.carocall.gitmobile.data.model.CommitInfo
 import com.carocall.gitmobile.data.model.RepoStatus
 import com.carocall.gitmobile.ui.component.CommitChangesSheet
 import com.carocall.gitmobile.ui.component.DiffSheet
+import com.carocall.gitmobile.ui.component.InputSheet
 import kotlinx.coroutines.launch
 import java.io.File
 import java.text.SimpleDateFormat
@@ -64,6 +65,8 @@ fun GitCommitScreen(
     var showChangesDialog by remember { mutableStateOf(false) }
     var showDiffDialog by remember { mutableStateOf(false) }
     var showDiscardConfirmDialog by remember { mutableStateOf<List<String>?>(null) }
+    var showTagInput by remember { mutableStateOf<CommitInfo?>(null) }
+    var showBranchInput by remember { mutableStateOf<CommitInfo?>(null) }
 
     fun refresh() {
         scope.launch {
@@ -458,7 +461,76 @@ fun GitCommitScreen(
                 commit = selectedCommit,
                 changes = commitChanges,
                 onDismiss = { showChangesDialog = false },
-                onFileClick = { path -> viewFileDiff(selectedCommit!!.id, path) }
+                onFileClick = { path -> viewFileDiff(selectedCommit!!.id, path) },
+                onAction = { action ->
+                    when (action) {
+                        "TAG" -> showTagInput = selectedCommit
+                        "BRANCH" -> showBranchInput = selectedCommit
+                        "CHECKOUT" -> {
+                            scope.launch {
+                                GitManager.checkoutCommit(repoRoot, selectedCommit!!.id).onSuccess {
+                                    Toast.makeText(context, "Checked out ${selectedCommit!!.id.take(7)}", Toast.LENGTH_SHORT).show()
+                                    refresh()
+                                    showChangesDialog = false
+                                }.onFailure { Toast.makeText(context, it.message, Toast.LENGTH_LONG).show() }
+                            }
+                        }
+                        "CHERRY_PICK" -> {
+                            scope.launch {
+                                GitManager.cherryPick(repoRoot, selectedCommit!!.id).onSuccess {
+                                    Toast.makeText(context, "Cherry picked!", Toast.LENGTH_SHORT).show()
+                                    refresh()
+                                    showChangesDialog = false
+                                }.onFailure { Toast.makeText(context, it.message, Toast.LENGTH_LONG).show() }
+                            }
+                        }
+                        "REVERT" -> {
+                            scope.launch {
+                                GitManager.revertCommit(repoRoot, selectedCommit!!.id).onSuccess {
+                                    Toast.makeText(context, "Reverted!", Toast.LENGTH_SHORT).show()
+                                    refresh()
+                                    showChangesDialog = false
+                                }.onFailure { Toast.makeText(context, it.message, Toast.LENGTH_LONG).show() }
+                            }
+                        }
+                        "DROP" -> {
+                            // TODO: Implement Drop (Interactive Rebase skip)
+                            Toast.makeText(context, "Drop not yet implemented", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            )
+        }
+
+        showTagInput?.let { commit ->
+            InputSheet(
+                title = "Add Tag to ${commit.id.take(7)}",
+                onDismiss = { showTagInput = null },
+                onConfirm = { tagName ->
+                    scope.launch {
+                        GitManager.addTag(repoRoot, tagName, commit.id).onSuccess {
+                            Toast.makeText(context, "Tag $tagName added", Toast.LENGTH_SHORT).show()
+                            showTagInput = null
+                            refresh()
+                        }.onFailure { Toast.makeText(context, it.message, Toast.LENGTH_LONG).show() }
+                    }
+                }
+            )
+        }
+
+        showBranchInput?.let { commit ->
+            InputSheet(
+                title = "Create Branch from ${commit.id.take(7)}",
+                onDismiss = { showBranchInput = null },
+                onConfirm = { branchName ->
+                    scope.launch {
+                        GitManager.createBranch(repoRoot, branchName, startPoint = commit.id).onSuccess {
+                            Toast.makeText(context, "Branch $branchName created", Toast.LENGTH_SHORT).show()
+                            showBranchInput = null
+                            refresh()
+                        }.onFailure { Toast.makeText(context, it.message, Toast.LENGTH_LONG).show() }
+                    }
+                }
             )
         }
 

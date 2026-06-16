@@ -29,6 +29,7 @@ import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
 import androidx.compose.ui.res.stringResource
 import com.carocall.gitmobile.R
+import com.carocall.gitmobile.utils.EditorConfig
 import com.carocall.gitmobile.utils.isBinaryFile
 import com.carocall.gitmobile.utils.openFileExternally
 import io.github.rosemoe.sora.widget.CodeEditor as SoraEditor
@@ -60,18 +61,17 @@ fun FileEditorScreen(file: File, onBack: () -> Unit) {
         // 1. 小说文本 (.txt)
         ext == "txt" -> NovelEditor(file, onBack)
         
-        // 2. 通用文本 (代码, 配置, Markdown 等)
-        ext in listOf("java", "kt", "py", "md", "xml", "json", "yaml", "toml", "properties", "gradle", "kts", "c", "cpp", "h", "js", "ts", "sh") -> 
-            SoraCodeEditor(file, onBack)
-        
-        // 3. 图片预览
+        // 2. 图片预览
         ext in listOf("jpg", "jpeg", "png", "webp", "gif", "bmp") -> 
             ImageViewer(file, onBack)
             
-        // 4. 音视频预览 (架构占位)
+        // 3. 音视频预览
         ext in listOf("mp4", "mkv", "mov", "webm", "mp3", "wav", "flac") ->
             MediaViewer(file, onBack)
             
+        // 4. 代码/通用文本 (根据 EditorConfig 判断)
+        EditorConfig.isCodeFile(file) -> SoraCodeEditor(file, onBack)
+
         // 5. 其他
         else -> {
             if (isBinaryFile(file)) {
@@ -214,43 +214,6 @@ fun NovelEditor(file: File, onBack: () -> Unit) {
 
 // --- 2. Sora 代码/文本编辑器 ---
 
-private val extensionToScope = mapOf(
-    "kt" to "source.kotlin",
-    "kts" to "source.kotlin",
-    "java" to "source.java",
-    "py" to "source.python",
-    "js" to "source.js",
-    "jsx" to "source.js.jsx",
-    "ts" to "source.ts",
-    "tsx" to "source.tsx",
-    "json" to "source.json",
-    "md" to "text.html.markdown",
-    "xml" to "text.xml",
-    "cpp" to "source.cpp",
-    "c" to "source.c",
-    "h" to "source.cpp",
-    "html" to "text.html.basic",
-    "css" to "source.css",
-    "scss" to "source.css.scss",
-    "yaml" to "source.yaml",
-    "toml" to "source.toml",
-    "sql" to "source.sql",
-    "rust" to "source.rust",
-    "go" to "source.go",
-    "sh" to "source.shell",
-    "dart" to "source.dart",
-    "swift" to "source.swift"
-)
-
-private val extensionToGrammarFile = mapOf(
-    "kt" to "kotlin.json",
-    "kts" to "kotlin.json",
-    "js" to "javascript.json",
-    "ts" to "typescript.json",
-    "md" to "markdown.json",
-    "py" to "python.json"
-)
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SoraCodeEditor(file: File, onBack: () -> Unit) {
@@ -277,11 +240,9 @@ fun SoraCodeEditor(file: File, onBack: () -> Unit) {
                 ThemeRegistry.getInstance().loadTheme(themeSource)
                 
                 // 2. 注册当前文件需要的语法 (按需加载)
-                val ext = file.extension.lowercase()
-                val scopeName = extensionToScope[ext]
-                if (scopeName != null) {
-                    val grammarFileName = extensionToGrammarFile[ext] ?: "$ext.json"
-                    val grammarPath = "grammars/$grammarFileName"
+                val langInfo = EditorConfig.getLanguageInfo(file.extension)
+                if (langInfo != null) {
+                    val grammarPath = "grammars/${langInfo.grammarFile}"
                     try {
                         val grammarSource = IGrammarSource.fromInputStream(
                             context.assets.open(grammarPath),
@@ -289,7 +250,7 @@ fun SoraCodeEditor(file: File, onBack: () -> Unit) {
                             Charsets.UTF_8
                         )
                         val grammarDef = DefaultGrammarDefinition.withGrammarSource(
-                            grammarSource, ext, scopeName
+                            grammarSource, file.extension, langInfo.scopeName
                         )
                         GrammarRegistry.getInstance().loadGrammar(grammarDef)
                     } catch (e: Exception) {
@@ -303,10 +264,10 @@ fun SoraCodeEditor(file: File, onBack: () -> Unit) {
         
         // 通知编辑器更新语言和配色
         editorInstance?.let { editor ->
-            val scopeName = extensionToScope[file.extension.lowercase()]
-            if (scopeName != null) {
+            val langInfo = EditorConfig.getLanguageInfo(file.extension)
+            if (langInfo != null) {
                 try {
-                    editor.setEditorLanguage(TextMateLanguage.create(scopeName, true))
+                    editor.setEditorLanguage(TextMateLanguage.create(langInfo.scopeName, true))
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
@@ -367,10 +328,10 @@ fun SoraCodeEditor(file: File, onBack: () -> Unit) {
                         colorScheme = TextMateColorScheme.create(ThemeRegistry.getInstance())
                         
                         // 设置语言
-                        val scopeName = extensionToScope[file.extension.lowercase()]
-                        if (scopeName != null) {
+                        val langInfo = EditorConfig.getLanguageInfo(file.extension)
+                        if (langInfo != null) {
                             try {
-                                setEditorLanguage(TextMateLanguage.create(scopeName, true))
+                                setEditorLanguage(TextMateLanguage.create(langInfo.scopeName, true))
                             } catch (e: Exception) {}
                         }
                         

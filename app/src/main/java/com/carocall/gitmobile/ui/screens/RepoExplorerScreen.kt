@@ -62,6 +62,7 @@ import com.carocall.gitmobile.data.git.GitManager
 import com.carocall.gitmobile.data.model.RepoStatus
 import com.carocall.gitmobile.ui.component.FileDetailsSheet
 import com.carocall.gitmobile.ui.component.InputSheet
+import com.carocall.gitmobile.utils.EditorConfig
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -151,26 +152,8 @@ fun RepoExplorerScreen(repoRoot: File, onBackToRepos: () -> Unit, onOpenFile: (F
                         else -> MaterialTheme.colorScheme.onSurface
                     }
 
-                    val fileIcon = when {
-                        file.isDirectory -> Icons.Default.Folder
-                        file.extension.lowercase() == "txt" -> Icons.AutoMirrored.Filled.Article
-                        file.extension.lowercase() in listOf("jpg", "jpeg", "png", "webp", "gif", "bmp") -> Icons.Default.Image
-                        file.extension.lowercase() in listOf("mp4", "mkv", "mov", "webm") -> Icons.Default.Movie
-                        file.extension.lowercase() in listOf("mp3", "wav", "flac") -> Icons.Default.Audiotrack
-                        file.extension.lowercase() == "pdf" -> Icons.Default.PictureAsPdf
-                        file.extension.lowercase() in listOf("java", "kt", "py", "md", "xml", "json", "yaml", "toml", "properties", "gradle", "kts", "c", "cpp", "h", "js", "ts", "sh") -> Icons.Default.Code
-                        else -> Icons.Default.Description
-                    }
-
-                    val iconTint = when {
-                        file.isDirectory -> MaterialTheme.colorScheme.primary
-                        fileIcon == Icons.Default.Code -> Color(0xFF673AB7) // 紫色表示代码
-                        fileIcon == Icons.Default.Image -> Color(0xFFE91E63) // 粉红表示图片
-                        fileIcon == Icons.Default.Movie -> Color(0xFFFF9800) // 橙色表示视频
-                        fileIcon == Icons.Default.Audiotrack -> Color(0xFF00BCD4) // 青色表示音频
-                        fileIcon == Icons.AutoMirrored.Filled.Article -> Color(0xFF4CAF50) // 绿色表示小说/文本
-                        else -> Color.Gray
-                    }
+                    val fileIcon = EditorConfig.getFileIcon(file)
+                    val iconTint = EditorConfig.getIconTint(file)
 
                     ListItem(
                         headlineContent = { Text(file.name, color = color) },

@@ -74,6 +74,8 @@
     <string name="discard_changes">Discard Changes</string>
     <string name="undo">Undo</string>
     <string name="redo">Redo</string>
+    <string name="serif_font">Serif Font</string>
+    <string name="word_count">Words: %d</string>
     <string name="file_info">File Information</string>
     <string name="path_label">Path: %s</string>
     <string name="size_label">Size: %s</string>

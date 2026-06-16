@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextIndent
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -104,6 +105,7 @@ fun NovelEditor(file: File, onBack: () -> Unit) {
     BackHandler(enabled = true, onBack = handleBack)
     
     var fontSize by remember { mutableFloatStateOf(18f) }
+    var isSerif by remember { mutableStateOf(true) }
     var bgColor by remember { mutableStateOf(Color(0xFFF5F2E9)) } 
     var showSettings by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
@@ -113,7 +115,16 @@ fun NovelEditor(file: File, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text(file.name, fontSize = 14.sp, color = if (bgColor == Color(0xFF1A1A1A)) Color.White else Color.Black) },
+                title = {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(file.name, fontSize = 14.sp, color = if (bgColor == Color(0xFF1A1A1A)) Color.White else Color.Black)
+                        Text(
+                            text = stringResource(R.string.word_count, text.length),
+                            fontSize = 10.sp,
+                            color = if (bgColor == Color(0xFF1A1A1A)) Color.Gray else Color.DarkGray
+                        )
+                    }
+                },
                 navigationIcon = { IconButton(onClick = handleBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = if (bgColor == Color(0xFF1A1A1A)) Color.White else Color.Black) } },
                 actions = {
                     IconButton(onClick = { showSettings = true }) { Icon(Icons.Default.Settings, null, tint = if (bgColor == Color(0xFF1A1A1A)) Color.White else Color.Black) }
@@ -149,10 +160,11 @@ fun NovelEditor(file: File, onBack: () -> Unit) {
                 onValueChange = { 
                     if (it.length > text.length && it.endsWith("\n")) text = it + "\u3000\u3000" else text = it 
                 },
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
                 textStyle = TextStyle(
                     fontSize = fontSize.sp,
-                    lineHeight = (fontSize * 1.8f).sp,
+                    lineHeight = (fontSize * 2.0f).sp,
+                    fontFamily = if (isSerif) FontFamily.Serif else FontFamily.SansSerif,
                     color = if (bgColor == Color(0xFF1A1A1A)) Color.LightGray else Color(0xFF2C2C2C),
                     textIndent = TextIndent(firstLine = fontSize.sp * 2)
                 ),
@@ -171,6 +183,15 @@ fun NovelEditor(file: File, onBack: () -> Unit) {
                 Column(Modifier.padding(24.dp).padding(bottom = 32.dp)) {
                     Text(stringResource(R.string.editor_settings), style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(24.dp))
+                    
+                    // 字体设置
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(stringResource(R.string.serif_font), modifier = Modifier.weight(1f))
+                        Switch(checked = isSerif, onCheckedChange = { isSerif = it })
+                    }
+                    
+                    Spacer(Modifier.height(16.dp))
+
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(stringResource(R.string.font_size), modifier = Modifier.width(48.dp))
                         Slider(value = fontSize, onValueChange = { fontSize = it }, valueRange = 12f..32f, modifier = Modifier.weight(1f))

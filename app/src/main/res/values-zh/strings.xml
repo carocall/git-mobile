@@ -74,6 +74,8 @@
     <string name="discard_changes">放弃更改</string>
     <string name="undo">撤销</string>
     <string name="redo">重做</string>
+    <string name="serif_font">衬线字体</string>
+    <string name="word_count">字数: %d</string>
     <string name="file_info">文件信息</string>
     <string name="path_label">路径: %s</string>
     <string name="size_label">大小: %s</string>

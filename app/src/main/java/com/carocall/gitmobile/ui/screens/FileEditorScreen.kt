@@ -35,6 +35,17 @@ import io.github.rosemoe.sora.widget.CodeEditor as SoraEditor
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
 import io.github.rosemoe.sora.text.ContentListener
 import io.github.rosemoe.sora.text.Content
+import io.github.rosemoe.sora.langs.textmate.TextMateLanguage
+import io.github.rosemoe.sora.langs.textmate.registry.GrammarRegistry
+import io.github.rosemoe.sora.langs.textmate.registry.ThemeRegistry
+import org.eclipse.tm4e.core.registry.IThemeSource
+import io.github.rosemoe.sora.langs.textmate.registry.model.DefaultGrammarDefinition
+import org.eclipse.tm4e.core.registry.IGrammarSource
+import io.github.rosemoe.sora.langs.textmate.TextMateColorScheme
+import java.io.InputStream
+import java.io.InputStreamReader
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
 import java.io.File
 
@@ -203,6 +214,43 @@ fun NovelEditor(file: File, onBack: () -> Unit) {
 
 // --- 2. Sora 代码/文本编辑器 ---
 
+private val extensionToScope = mapOf(
+    "kt" to "source.kotlin",
+    "kts" to "source.kotlin",
+    "java" to "source.java",
+    "py" to "source.python",
+    "js" to "source.js",
+    "jsx" to "source.js.jsx",
+    "ts" to "source.ts",
+    "tsx" to "source.tsx",
+    "json" to "source.json",
+    "md" to "text.html.markdown",
+    "xml" to "text.xml",
+    "cpp" to "source.cpp",
+    "c" to "source.c",
+    "h" to "source.cpp",
+    "html" to "text.html.basic",
+    "css" to "source.css",
+    "scss" to "source.css.scss",
+    "yaml" to "source.yaml",
+    "toml" to "source.toml",
+    "sql" to "source.sql",
+    "rust" to "source.rust",
+    "go" to "source.go",
+    "sh" to "source.shell",
+    "dart" to "source.dart",
+    "swift" to "source.swift"
+)
+
+private val extensionToGrammarFile = mapOf(
+    "kt" to "kotlin.json",
+    "kts" to "kotlin.json",
+    "js" to "javascript.json",
+    "ts" to "typescript.json",
+    "md" to "markdown.json",
+    "py" to "python.json"
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SoraCodeEditor(file: File, onBack: () -> Unit) {
@@ -213,6 +261,60 @@ fun SoraCodeEditor(file: File, onBack: () -> Unit) {
     var canRedo by remember { mutableStateOf(false) }
     var showExitDialog by remember { mutableStateOf(false) }
     val isDark = isSystemInDarkTheme()
+    val context = LocalContext.current
+
+    // 初始化 TextMate 引擎
+    LaunchedEffect(file.extension) {
+        withContext(Dispatchers.IO) {
+            try {
+                // 1. 加载主题
+                val themePath = "themes/one-dark-pro.json"
+                val themeSource = IThemeSource.fromInputStream(
+                    context.assets.open(themePath),
+                    themePath,
+                    Charsets.UTF_8
+                )
+                ThemeRegistry.getInstance().loadTheme(themeSource)
+                
+                // 2. 注册当前文件需要的语法 (按需加载)
+                val ext = file.extension.lowercase()
+                val scopeName = extensionToScope[ext]
+                if (scopeName != null) {
+                    val grammarFileName = extensionToGrammarFile[ext] ?: "$ext.json"
+                    val grammarPath = "grammars/$grammarFileName"
+                    try {
+                        val grammarSource = IGrammarSource.fromInputStream(
+                            context.assets.open(grammarPath),
+                            grammarPath,
+                            Charsets.UTF_8
+                        )
+                        val grammarDef = DefaultGrammarDefinition.withGrammarSource(
+                            grammarSource, ext, scopeName
+                        )
+                        GrammarRegistry.getInstance().loadGrammar(grammarDef)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        
+        // 通知编辑器更新语言和配色
+        editorInstance?.let { editor ->
+            val scopeName = extensionToScope[file.extension.lowercase()]
+            if (scopeName != null) {
+                try {
+                    editor.setEditorLanguage(TextMateLanguage.create(scopeName, true))
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+            // 使用 TextMate 的配色方案
+            editor.colorScheme = TextMateColorScheme.create(ThemeRegistry.getInstance())
+        }
+    }
 
     val handleBack = {
         if (hasChanges) {
@@ -253,7 +355,6 @@ fun SoraCodeEditor(file: File, onBack: () -> Unit) {
             )
         }
     ) { padding ->
-        // 使用 Column 并设置 weight 以便键盘弹出时自动避让
         Column(modifier = Modifier.padding(padding).fillMaxSize().imePadding()) {
             AndroidView(
                 modifier = Modifier.fillMaxSize(),
@@ -262,21 +363,18 @@ fun SoraCodeEditor(file: File, onBack: () -> Unit) {
                         setText(originalText)
                         isLineNumberEnabled = true
                         
-                        // 不设置任何语言包，仅作为纯文本编辑器使用
+                        // 应用初始配色
+                        colorScheme = TextMateColorScheme.create(ThemeRegistry.getInstance())
                         
-                        // 主题适配 (仅基础配色)
-                        colorScheme = if (isDark) {
-                            EditorColorScheme().apply {
-                                setColor(EditorColorScheme.WHOLE_BACKGROUND, Color(0xFF1E1E1E).toArgb())
-                                setColor(EditorColorScheme.TEXT_NORMAL, Color.LightGray.toArgb())
-                                setColor(EditorColorScheme.LINE_NUMBER_BACKGROUND, Color(0xFF252526).toArgb())
-                                setColor(EditorColorScheme.LINE_NUMBER, Color(0xFF858585).toArgb())
-                            }
-                        } else {
-                            EditorColorScheme()
+                        // 设置语言
+                        val scopeName = extensionToScope[file.extension.lowercase()]
+                        if (scopeName != null) {
+                            try {
+                                setEditorLanguage(TextMateLanguage.create(scopeName, true))
+                            } catch (e: Exception) {}
                         }
                         
-                        // 监听内容变化及撤销栈状态
+                        // 监听内容变化
                         text.addContentListener(object : ContentListener {
                             override fun beforeReplace(content: Content) {}
                             override fun afterInsert(content: Content, startLine: Int, startColumn: Int, endLine: Int, endColumn: Int, insertedContent: CharSequence) {
@@ -296,18 +394,7 @@ fun SoraCodeEditor(file: File, onBack: () -> Unit) {
                         editorInstance = this
                     }
                 },
-                update = { view ->
-                    view.colorScheme = if (isDark) {
-                        EditorColorScheme().apply {
-                            setColor(EditorColorScheme.WHOLE_BACKGROUND, Color(0xFF1E1E1E).toArgb())
-                            setColor(EditorColorScheme.TEXT_NORMAL, Color.LightGray.toArgb())
-                            setColor(EditorColorScheme.LINE_NUMBER_BACKGROUND, Color(0xFF252526).toArgb())
-                            setColor(EditorColorScheme.LINE_NUMBER, Color(0xFF858585).toArgb())
-                        }
-                    } else {
-                        EditorColorScheme()
-                    }
-                }
+                update = { _ -> }
             )
         }
     }

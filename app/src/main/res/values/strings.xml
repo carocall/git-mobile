@@ -127,4 +127,7 @@
     <string name="confirm_delete_branch_msg">Are you sure you want to delete branch \"%s\"?</string>
     <string name="discard_changes_confirm_title">Discard Changes</string>
     <string name="discard_changes_confirm_msg">Are you sure you want to discard changes to %d file(s)? This action cannot be undone.</string>
+    <string name="copy">Copy</string>
+    <string name="error_title">Error Occurred</string>
+    <string name="copied_to_clipboard">Copied to clipboard</string>
 </resources>

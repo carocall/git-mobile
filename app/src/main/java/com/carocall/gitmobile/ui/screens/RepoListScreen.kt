@@ -22,6 +22,7 @@ import androidx.compose.ui.res.stringResource
 import com.carocall.gitmobile.R
 import com.carocall.gitmobile.data.git.GitManager
 import com.carocall.gitmobile.ui.component.CloneSheet
+import com.carocall.gitmobile.ui.component.ErrorDialog
 import com.carocall.gitmobile.ui.component.InputSheet
 import kotlinx.coroutines.launch
 import java.io.File
@@ -49,6 +50,7 @@ fun RepoListScreen(
     var showRenameDialog by remember { mutableStateOf<File?>(null) }
     var showDeleteConfirm by remember { mutableStateOf<File?>(null) }
     var cloningProgress by remember { mutableStateOf<Pair<String, Float>?>(null) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
     val dateFormat = remember { SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()) }
 
     fun refreshRepos() {
@@ -218,7 +220,7 @@ fun RepoListScreen(
                             Toast.makeText(context, context.getString(R.string.clone_success), Toast.LENGTH_SHORT).show()
                             refreshRepos()
                         } else {
-                            Toast.makeText(context, context.getString(R.string.clone_failed, result.exceptionOrNull()?.message), Toast.LENGTH_LONG).show()
+                            errorMessage = context.getString(R.string.clone_failed, result.exceptionOrNull()?.message)
                         }
                     }
                 }
@@ -268,5 +270,7 @@ fun RepoListScreen(
                 }
             )
         }
+
+        errorMessage?.let { ErrorDialog(error = it, onDismiss = { errorMessage = null }) }
     }
 }

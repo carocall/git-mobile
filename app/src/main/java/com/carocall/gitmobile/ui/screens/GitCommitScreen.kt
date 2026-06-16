@@ -31,6 +31,7 @@ import com.carocall.gitmobile.data.model.CommitInfo
 import com.carocall.gitmobile.data.model.RepoStatus
 import com.carocall.gitmobile.ui.component.CommitChangesSheet
 import com.carocall.gitmobile.ui.component.DiffSheet
+import com.carocall.gitmobile.ui.component.ErrorDialog
 import com.carocall.gitmobile.ui.component.InputSheet
 import kotlinx.coroutines.launch
 import java.io.File
@@ -67,6 +68,7 @@ fun GitCommitScreen(
     var showDiscardConfirmDialog by remember { mutableStateOf<List<String>?>(null) }
     var showTagInput by remember { mutableStateOf<CommitInfo?>(null) }
     var showBranchInput by remember { mutableStateOf<CommitInfo?>(null) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
 
     fun refresh() {
         scope.launch {
@@ -132,7 +134,7 @@ fun GitCommitScreen(
                     Toast.makeText(context, context.getString(R.string.auth_required), Toast.LENGTH_SHORT).show()
                     onGoToRemoteConfig(repoRoot.absolutePath)
                 } else {
-                    Toast.makeText(context, context.getString(R.string.pull_failed, msg), Toast.LENGTH_LONG).show()
+                    errorMessage = context.getString(R.string.pull_failed, msg)
                 }
             }
             isLoading = false
@@ -152,7 +154,7 @@ fun GitCommitScreen(
                     Toast.makeText(context, context.getString(R.string.auth_required), Toast.LENGTH_SHORT).show()
                     onGoToRemoteConfig(repoRoot.absolutePath)
                 } else {
-                    Toast.makeText(context, context.getString(R.string.push_failed, msg), Toast.LENGTH_LONG).show()
+                    errorMessage = context.getString(R.string.push_failed, msg)
                 }
             }
             isLoading = false
@@ -172,7 +174,7 @@ fun GitCommitScreen(
                     Toast.makeText(context, context.getString(R.string.auth_required), Toast.LENGTH_SHORT).show()
                     onGoToRemoteConfig(repoRoot.absolutePath)
                 } else {
-                    Toast.makeText(context, context.getString(R.string.sync_failed, msg), Toast.LENGTH_LONG).show()
+                    errorMessage = context.getString(R.string.sync_failed, msg)
                 }
             }
             isLoading = false
@@ -472,7 +474,7 @@ fun GitCommitScreen(
                                     Toast.makeText(context, "Checked out ${selectedCommit!!.id.take(7)}", Toast.LENGTH_SHORT).show()
                                     refresh()
                                     showChangesDialog = false
-                                }.onFailure { Toast.makeText(context, it.message, Toast.LENGTH_LONG).show() }
+                                }.onFailure { errorMessage = it.message }
                             }
                         }
                         "CHERRY_PICK" -> {
@@ -481,7 +483,7 @@ fun GitCommitScreen(
                                     Toast.makeText(context, "Cherry picked!", Toast.LENGTH_SHORT).show()
                                     refresh()
                                     showChangesDialog = false
-                                }.onFailure { Toast.makeText(context, it.message, Toast.LENGTH_LONG).show() }
+                                }.onFailure { errorMessage = it.message }
                             }
                         }
                         "REVERT" -> {
@@ -490,7 +492,7 @@ fun GitCommitScreen(
                                     Toast.makeText(context, "Reverted!", Toast.LENGTH_SHORT).show()
                                     refresh()
                                     showChangesDialog = false
-                                }.onFailure { Toast.makeText(context, it.message, Toast.LENGTH_LONG).show() }
+                                }.onFailure { errorMessage = it.message }
                             }
                         }
                         "DROP" -> {
@@ -512,7 +514,7 @@ fun GitCommitScreen(
                             Toast.makeText(context, "Tag $tagName added", Toast.LENGTH_SHORT).show()
                             showTagInput = null
                             refresh()
-                        }.onFailure { Toast.makeText(context, it.message, Toast.LENGTH_LONG).show() }
+                        }.onFailure { errorMessage = it.message }
                     }
                 }
             )
@@ -528,7 +530,7 @@ fun GitCommitScreen(
                             Toast.makeText(context, "Branch $branchName created", Toast.LENGTH_SHORT).show()
                             showBranchInput = null
                             refresh()
-                        }.onFailure { Toast.makeText(context, it.message, Toast.LENGTH_LONG).show() }
+                        }.onFailure { errorMessage = it.message }
                     }
                 }
             )
@@ -557,7 +559,7 @@ fun GitCommitScreen(
                                     refresh()
                                     showDiscardConfirmDialog = null
                                 }.onFailure {
-                                    Toast.makeText(context, it.message, Toast.LENGTH_LONG).show()
+                                    errorMessage = it.message
                                 }
                             }
                         }
@@ -576,5 +578,7 @@ fun GitCommitScreen(
         if (isLoading) {
             AlertDialog(onDismissRequest = {}, confirmButton = {}, text = { Row(verticalAlignment = Alignment.CenterVertically) { CircularProgressIndicator(); Spacer(Modifier.width(16.dp)); Text(stringResource(R.string.syncing)) } })
         }
+
+        errorMessage?.let { ErrorDialog(error = it, onDismiss = { errorMessage = null }) }
     }
 }

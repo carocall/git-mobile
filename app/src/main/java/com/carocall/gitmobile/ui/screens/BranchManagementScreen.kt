@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.sp
 import com.carocall.gitmobile.R
 import com.carocall.gitmobile.data.git.GitManager
 import com.carocall.gitmobile.data.model.BranchInfo
+import com.carocall.gitmobile.ui.component.ErrorDialog
 import com.carocall.gitmobile.ui.component.InputSheet
 import kotlinx.coroutines.launch
 import java.io.File
@@ -35,6 +36,7 @@ fun BranchManagementScreen(repoRoot: File, onBack: () -> Unit) {
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     var showCreateDialog by remember { mutableStateOf(false) }
     var branchToDelete by remember { mutableStateOf<BranchInfo?>(null) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
 
     fun refresh() {
         scope.launch {
@@ -92,7 +94,7 @@ fun BranchManagementScreen(repoRoot: File, onBack: () -> Unit) {
                                         Toast.makeText(context, context.getString(R.string.branch_checkout_success, branch.name), Toast.LENGTH_SHORT).show()
                                         refresh()
                                     }.onFailure {
-                                        Toast.makeText(context, it.message, Toast.LENGTH_LONG).show()
+                                        errorMessage = it.message
                                     }
                                 }
                             }
@@ -116,7 +118,7 @@ fun BranchManagementScreen(repoRoot: File, onBack: () -> Unit) {
                             refresh()
                             showCreateDialog = false
                         }.onFailure {
-                            Toast.makeText(context, it.message, Toast.LENGTH_LONG).show()
+                            errorMessage = it.message
                         }
                     }
                 }
@@ -138,7 +140,7 @@ fun BranchManagementScreen(repoRoot: File, onBack: () -> Unit) {
                                     refresh()
                                     branchToDelete = null
                                 }.onFailure {
-                                    Toast.makeText(context, it.message, Toast.LENGTH_LONG).show()
+                                    errorMessage = it.message
                                 }
                             }
                         }
@@ -153,6 +155,8 @@ fun BranchManagementScreen(repoRoot: File, onBack: () -> Unit) {
                 }
             )
         }
+
+        errorMessage?.let { ErrorDialog(error = it, onDismiss = { errorMessage = null }) }
     }
 }
 

@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import com.carocall.gitmobile.R
 import com.carocall.gitmobile.data.git.GitManager
 import com.carocall.gitmobile.data.model.RemoteProfile
+import com.carocall.gitmobile.ui.component.ErrorDialog
 import com.carocall.gitmobile.ui.component.RemoteProfileSheet
 import kotlinx.coroutines.launch
 import java.io.File
@@ -34,6 +35,7 @@ fun RemoteConfigScreen(repoRoot: File, onBack: () -> Unit) {
     var editingProfile by remember { mutableStateOf<RemoteProfile?>(null) }
     var profileToDelete by remember { mutableStateOf<RemoteProfile?>(null) }
     var showAddDialog by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
 
     fun refresh() {
         scope.launch {
@@ -149,6 +151,8 @@ fun RemoteConfigScreen(repoRoot: File, onBack: () -> Unit) {
                 }
             )
         }
+
+        errorMessage?.let { ErrorDialog(error = it, onDismiss = { errorMessage = null }) }
     }
 }
 

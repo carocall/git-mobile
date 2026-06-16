@@ -57,6 +57,7 @@ fun GitCommitScreen(
     var isLoading by remember { mutableStateOf(false) }
     var remoteConfig by remember { mutableStateOf(Triple("", "", "")) }
     var selectedTabIndex by remember { mutableIntStateOf(0) }
+    var isInitialLoading by remember { mutableStateOf(true) }
 
     // 查看提交变更的状态
     var selectedCommit by remember { mutableStateOf<CommitInfo?>(null) }
@@ -79,6 +80,7 @@ fun GitCommitScreen(
             if (selectedFiles.isEmpty() && status.allChanges.isNotEmpty()) {
                 selectedFiles = status.allChanges.map { it.first }.toSet()
             }
+            isInitialLoading = false
         }
     }
 
@@ -212,16 +214,30 @@ fun GitCommitScreen(
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.primary
                             )
-                            Text(
-                                text = if (remoteConfig.first.isNotBlank()) {
-                                    val name = remoteConfig.first.substringAfterLast("/").substringBefore(".git")
-                                    if (name.isBlank()) "Git Remote" else name
-                                } else stringResource(R.string.no_remote_config),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
+                            if (isInitialLoading) {
+                                Box(
+                                    Modifier
+                                        .padding(top = 4.dp)
+                                        .width(120.dp)
+                                        .height(20.dp)
+                                        .background(
+                                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
+                                            MaterialTheme.shapes.extraSmall
+                                        )
+                                )
+                            } else {
+                                Text(
+                                    text = if (remoteConfig.first.isNotBlank()) {
+                                        val name = remoteConfig.first.substringAfterLast("/")
+                                            .substringBefore(".git")
+                                        if (name.isBlank()) "Git Remote" else name
+                                    } else stringResource(R.string.no_remote_config),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
-                        if (remoteConfig.first.isNotBlank()) {
+                        if (!isInitialLoading && remoteConfig.first.isNotBlank()) {
                             Surface(
                                 color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
                                 shape = MaterialTheme.shapes.extraSmall
@@ -250,9 +266,11 @@ fun GitCommitScreen(
                     Spacer(Modifier.height(12.dp))
                     
                     Row(
-                        modifier = Modifier.fillMaxWidth().clickable { 
-                            onGoToBranchManagement(repoRoot.absolutePath)
-                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(enabled = !isInitialLoading) {
+                                onGoToBranchManagement(repoRoot.absolutePath)
+                            },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
@@ -262,28 +280,57 @@ fun GitCommitScreen(
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = status.branch,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontWeight = FontWeight.Medium
-                        )
+                        if (isInitialLoading) {
+                            Box(
+                                Modifier
+                                    .width(80.dp)
+                                    .height(16.dp)
+                                    .background(
+                                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
+                                        MaterialTheme.shapes.extraSmall
+                                    )
+                            )
+                        } else {
+                            Text(
+                                text = status.branch,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
                     }
 
-                    if (remoteConfig.first.isNotBlank()) {
+                    if (!isInitialLoading && remoteConfig.first.isNotBlank()) {
                         Spacer(Modifier.height(16.dp))
-                        HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
+                        HorizontalDivider(
+                            thickness = 0.5.dp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f)
+                        )
                         Row(
-                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp),
                             horizontalArrangement = Arrangement.SpaceEvenly
                         ) {
-                            IconButton(onClick = { withRemoteConfig(forceAuth = false) { _, u, t -> performPull(u, t) } }) {
+                            IconButton(onClick = {
+                                withRemoteConfig(forceAuth = false) { _, u, t ->
+                                    performPull(u, t)
+                                }
+                            }) {
                                 Icon(Icons.Default.Download, stringResource(R.string.pull))
                             }
-                            IconButton(onClick = { withRemoteConfig(forceAuth = true) { url, u, t -> performSync(url, u, t) } }) {
+                            IconButton(onClick = {
+                                withRemoteConfig(forceAuth = true) { url, u, t ->
+                                    performSync(url, u, t)
+                                }
+                            }) {
                                 Icon(Icons.Default.Sync, stringResource(R.string.one_click_sync))
                             }
-                            IconButton(onClick = { withRemoteConfig(forceAuth = true) { _, u, t -> performPush(u, t) } }) {
+                            IconButton(onClick = {
+                                withRemoteConfig(forceAuth = true) { _, u, t ->
+                                    performPush(u, t)
+                                }
+                            }) {
                                 Icon(Icons.Default.Upload, stringResource(R.string.push))
                             }
                         }

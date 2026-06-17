@@ -137,4 +137,8 @@
     <string name="connection_success">Connection Successful</string>
     <string name="connection_failed">Connection Failed: %s</string>
     <string name="in_use">In Use</string>
+    <string name="current_label">Current</string>
+    <string name="checkout_remote_title">Checkout Remote Branch</string>
+    <string name="checkout_remote_msg">Create a local branch from \"%s\":</string>
+    <string name="checkout">Checkout</string>
 </resources>

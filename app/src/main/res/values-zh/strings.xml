@@ -137,4 +137,8 @@
     <string name="connection_success">连接成功</string>
     <string name="connection_failed">连接失败: %s</string>
     <string name="in_use">正在使用</string>
+    <string name="current_label">当前</string>
+    <string name="checkout_remote_title">检出远程分支</string>
+    <string name="checkout_remote_msg">基于 \"%s\" 创建本地分支：</string>
+    <string name="checkout">检出</string>
 </resources>

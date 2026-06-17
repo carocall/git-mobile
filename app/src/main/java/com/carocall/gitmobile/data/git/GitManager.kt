@@ -154,6 +154,22 @@ object GitManager {
         } catch (e: Exception) { Result.failure(e) }
     }
 
+    suspend fun testConnection(url: String, user: String, token: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val credentialsProvider = if (user.isNotBlank() && token.isNotBlank()) {
+                UsernamePasswordCredentialsProvider(user, token)
+            } else null
+            
+            Git.lsRemoteRepository()
+                .setRemote(url)
+                .setCredentialsProvider(credentialsProvider)
+                .call()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     // 获取保存的远程地址、用户名和 Token
     suspend fun getRemoteConfig(repoRoot: File): Triple<String, String, String> = withContext(Dispatchers.IO) {
         try {

@@ -1,22 +1,21 @@
 package com.carocall.gitmobile.ui.screens
 
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.carocall.gitmobile.R
 import com.carocall.gitmobile.data.git.GitManager
@@ -32,14 +31,18 @@ fun RemoteConfigScreen(repoRoot: File, onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var profiles by remember { mutableStateOf<List<RemoteProfile>>(emptyList()) }
+    var currentRemoteUrl by remember { mutableStateOf("") }
     var editingProfile by remember { mutableStateOf<RemoteProfile?>(null) }
     var profileToDelete by remember { mutableStateOf<RemoteProfile?>(null) }
     var showAddDialog by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var isTestingConnection by remember { mutableStateOf(false) }
 
     fun refresh() {
         scope.launch {
             profiles = GitManager.getRemoteProfiles(repoRoot)
+            val (url, _, _) = GitManager.getRemoteConfig(repoRoot)
+            currentRemoteUrl = url
         }
     }
 
@@ -66,16 +69,29 @@ fun RemoteConfigScreen(repoRoot: File, onBack: () -> Unit) {
                 items(profiles) { profile ->
                     RemoteProfileCard(
                         profile = profile,
+                        isInUse = profile.url == currentRemoteUrl,
                         onUse = {
                             scope.launch {
                                 GitManager.saveRemoteConfig(repoRoot, profile.url, profile.user, profile.token)
                                 Toast.makeText(context, context.getString(R.string.remote_config_saved), Toast.LENGTH_SHORT).show()
-                                onBack()
+                                refresh()
                             }
                         },
                         onEdit = { editingProfile = profile },
                         onDelete = {
                             profileToDelete = profile
+                        },
+                        onTest = {
+                            scope.launch {
+                                isTestingConnection = true
+                                val result = GitManager.testConnection(profile.url, profile.user, profile.token)
+                                isTestingConnection = false
+                                if (result.isSuccess) {
+                                    Toast.makeText(context, context.getString(R.string.connection_success), Toast.LENGTH_SHORT).show()
+                                } else {
+                                    errorMessage = context.getString(R.string.connection_failed, result.exceptionOrNull()?.message)
+                                }
+                            }
                         }
                     )
                 }
@@ -153,21 +169,39 @@ fun RemoteConfigScreen(repoRoot: File, onBack: () -> Unit) {
         }
 
         errorMessage?.let { ErrorDialog(error = it, onDismiss = { errorMessage = null }) }
+
+        if (isTestingConnection) {
+            AlertDialog(
+                onDismissRequest = {},
+                confirmButton = {},
+                title = { Text(stringResource(R.string.testing_connection)) },
+                text = {
+                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
+                }
+            )
+        }
     }
 }
 
 @Composable
 fun RemoteProfileCard(
     profile: RemoteProfile,
+    isInUse: Boolean,
     onUse: () -> Unit,
     onEdit: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onTest: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-        )
+            containerColor = if (isInUse) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+            else MaterialTheme.colorScheme.surface
+        ),
+        border = if (isInUse) BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)) else null
     ) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -177,63 +211,89 @@ fun RemoteProfileCard(
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f)
                 )
-                IconButton(onClick = onDelete) {
+                if (isInUse) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.primary,
+                        shape = MaterialTheme.shapes.extraSmall,
+                    ) {
+                        Text(
+                            text = stringResource(R.string.in_use),
+                            style = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                }
+                IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
                     Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp))
                 }
             }
+
             Spacer(Modifier.height(8.dp))
+
             Text(
-                text = stringResource(R.string.url_label, profile.url),
+                text = profile.url,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
-            Spacer(Modifier.height(4.dp))
-            
-            Text(
-                text = stringResource(R.string.identity_label),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.primary
-            )
-            if (profile.user.isNotBlank()) {
+
+            Spacer(Modifier.height(8.dp))
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.Person,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(Modifier.width(4.dp))
                 Text(
-                    text = stringResource(R.string.user_label, profile.user),
+                    text = if (profile.user.isNotBlank()) profile.user else stringResource(R.string.no_identity),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = stringResource(R.string.token_label),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            } else {
-                Text(
-                    text = stringResource(R.string.no_identity),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.Gray
                 )
             }
-            
-            Spacer(Modifier.height(12.dp))
-            
+
+            Spacer(Modifier.height(16.dp))
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                TextButton(
-                    onClick = onEdit,
-                    modifier = Modifier.padding(end = 8.dp)
+                OutlinedButton(
+                    onClick = onTest,
+                    modifier = Modifier.height(36.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp)
                 ) {
-                    Icon(Icons.Default.Edit, null, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.CheckCircle, null, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text(stringResource(R.string.edit_remote))
+                    Text(stringResource(R.string.test_connection), style = MaterialTheme.typography.labelLarge)
                 }
-                
-                Button(
-                    onClick = onUse,
-                    contentPadding = PaddingValues(horizontal = 24.dp)
+
+                OutlinedButton(
+                    onClick = onEdit,
+                    modifier = Modifier.height(36.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp)
                 ) {
-                    Text(stringResource(R.string.use_remote))
+                    Icon(Icons.Default.Edit, null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text(stringResource(R.string.edit_remote), style = MaterialTheme.typography.labelLarge)
+                }
+
+                Spacer(Modifier.weight(1f))
+
+                if (!isInUse) {
+                    Button(
+                        onClick = onUse,
+                        modifier = Modifier.height(36.dp),
+                        contentPadding = PaddingValues(horizontal = 16.dp)
+                    ) {
+                        Text(stringResource(R.string.use_remote), style = MaterialTheme.typography.labelLarge)
+                    }
                 }
             }
         }

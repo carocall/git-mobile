@@ -132,4 +132,9 @@
     <string name="copy">Copy</string>
     <string name="error_title">Error Occurred</string>
     <string name="copied_to_clipboard">Copied to clipboard</string>
+    <string name="test_connection">Test</string>
+    <string name="testing_connection">Testing...</string>
+    <string name="connection_success">Connection Successful</string>
+    <string name="connection_failed">Connection Failed: %s</string>
+    <string name="in_use">In Use</string>
 </resources>

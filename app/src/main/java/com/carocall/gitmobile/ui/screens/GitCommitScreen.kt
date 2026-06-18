@@ -334,15 +334,10 @@ fun GitCommitScreen(
                     }
 
                     if (!isInitialLoading && remoteConfig.first.isNotBlank()) {
-                        Spacer(Modifier.height(16.dp))
-                        HorizontalDivider(
-                            thickness = 0.5.dp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f)
-                        )
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(top = 8.dp),
+                                .padding(top = 4.dp),
                             horizontalArrangement = Arrangement.SpaceEvenly
                         ) {
                             IconButton(onClick = {
@@ -434,15 +429,6 @@ fun GitCommitScreen(
                         }
                     }
                 )
-
-                if (commitMessage.isNotBlank()) {
-                    Text(
-                        stringResource(R.string.commit_hint),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color.Gray,
-                        modifier = Modifier.padding(horizontal = 16.dp)
-                    )
-                }
 
                 LazyColumn(Modifier.fillMaxSize()) {
                     if (status.hasConflicts) {

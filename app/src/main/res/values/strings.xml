@@ -45,6 +45,8 @@
     <string name="push_failed">Push failed: %s</string>
     <string name="sync_success">Sync successful</string>
     <string name="sync_failed">Sync failed: %s</string>
+    <string name="sync_pull_failed">Pull failed or conflict exists, please resolve manually</string>
+    <string name="sync_push_failed_status">Push failed: %s</string>
     <string name="source_control">Source Control</string>
     <string name="back">Back</string>
     <string name="remote_repo">Remote Repository</string>

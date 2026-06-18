@@ -164,9 +164,19 @@ fun GitCommitScreen(
     }
 
     fun performSync(url: String, user: String, token: String) {
+        val pullFailedMsg = context.getString(R.string.sync_pull_failed)
+        val pushFailedPrefix = context.getString(R.string.push)
+        
         scope.launch {
             isLoading = true
-            GitManager.sync(repoRoot, url, user, token).onSuccess {
+            GitManager.sync(
+                repoRoot, 
+                url, 
+                user, 
+                token,
+                pullFailedMsg = pullFailedMsg,
+                pushFailedPrefix = pushFailedPrefix
+            ).onSuccess {
                 Toast.makeText(context, context.getString(R.string.sync_success), Toast.LENGTH_SHORT).show()
                 if (token.isNotBlank()) sessionToken = token
                 refresh()
@@ -176,7 +186,7 @@ fun GitCommitScreen(
                     Toast.makeText(context, context.getString(R.string.auth_required), Toast.LENGTH_SHORT).show()
                     onGoToRemoteConfig(repoRoot.absolutePath)
                 } else {
-                    errorMessage = context.getString(R.string.sync_failed, msg)
+                    errorMessage = if (msg == pullFailedMsg) msg else context.getString(R.string.sync_failed, msg)
                 }
             }
             isLoading = false

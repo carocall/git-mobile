@@ -220,7 +220,8 @@ object GitManager {
         try {
             Git.open(repoRoot).use { git ->
                 val config = git.repository.config
-                val url = config.getString("remote", "origin", "url") ?: ""
+                val remoteName = getRemoteName(git)
+                val url = config.getString("remote", remoteName, "url") ?: ""
                 val user = config.getString("gitmobile", "auth", "user") ?: ""
                 val token = config.getString("gitmobile", "auth", "token") ?: ""
                 Triple(url, user, token)
@@ -233,7 +234,8 @@ object GitManager {
         try {
             Git.open(repoRoot).use { git ->
                 val config = git.repository.config
-                config.setString("remote", "origin", "url", url)
+                val remoteName = getRemoteName(git)
+                config.setString("remote", remoteName, "url", url)
                 config.setString("gitmobile", "auth", "user", username)
                 config.setString("gitmobile", "auth", "token", token)
                 config.save()
@@ -316,41 +318,64 @@ object GitManager {
         try {
             Git.open(repoRoot).use { git ->
                 val remoteName = getRemoteName(git)
-                val pushCmd = git.push().setRemote(remoteName)
-                pushCmd.setCredentialsProvider(UsernamePasswordCredentialsProvider(username, token))
+                // 显式推送当前分支到远程对应分支，提高 Gitee 等服务器的兼容性
+                val pushCmd = git.push()
+                    .setRemote(remoteName)
+                    .setCredentialsProvider(UsernamePasswordCredentialsProvider(username, token))
+
                 pushCmd.call()
                 Result.success("推送成功")
             }
         } catch (e: Exception) { Result.failure(e) }
     }
 
-    suspend fun sync(repoRoot: File, remoteUrl: String, username: String, token: String): Result<String> = withContext(Dispatchers.IO) {
+    suspend fun sync(
+        repoRoot: File,
+        remoteUrl: String,
+        username: String,
+        token: String,
+        pullFailedMsg: String,
+        pushFailedPrefix: String
+    ): Result<Unit> = withContext(Dispatchers.IO) {
         if (username.isBlank() || token.isBlank()) {
-            return@withContext Result.failure(Exception("该仓库未配置身份"))
+            return@withContext Result.failure(Exception("AUTH_MISSING"))
         }
         try {
             Git.open(repoRoot).use { git ->
                 val cp = UsernamePasswordCredentialsProvider(username, token)
                 val remoteName = getRemoteName(git)
 
-                // 1. 先尝试 Pull (拉取)
-                try {
-                    val pullCmd = git.pull().setRemote(remoteName)
-                    pullCmd.setCredentialsProvider(cp)
-                    pullCmd.call()
-                } catch (e: Exception) {
-                    // 忽略拉取错误
+                // 1. 先执行 Pull
+                val pullResult = git.pull()
+                    .setRemote(remoteName)
+                    .setCredentialsProvider(cp)
+                    .call()
+
+                if (!pullResult.isSuccessful) {
+                    // 如果拉取不成功（比如有冲突）
+                    return@withContext Result.failure(Exception(pullFailedMsg))
                 }
 
-                // 2. 再执行 Push (推送)
-                val pushCmd = git.push().setRemote(remoteName)
-                pushCmd.setCredentialsProvider(cp)
-                pushCmd.call()
+                // 2. 只有 Pull 成功（或已经是最新）后，再执行 Push
+                val pushResults = git.push()
+                    .setRemote(remoteName)
+                    .setCredentialsProvider(cp)
+                    .call()
+                
+                // 检查推送结果
+                for (pushResult in pushResults) {
+                    for (updates in pushResult.remoteUpdates) {
+                        if (updates.status != org.eclipse.jgit.transport.RemoteRefUpdate.Status.OK && 
+                            updates.status != org.eclipse.jgit.transport.RemoteRefUpdate.Status.UP_TO_DATE) {
+                            return@withContext Result.failure(Exception("$pushFailedPrefix: ${updates.status}"))
+                        }
+                    }
+                }
 
-                // 3. 只有当 Push 成功没有抛出异常时，保存配置到本地
+                // 3. 全部成功后保存配置
                 saveRemoteConfig(repoRoot, remoteUrl, username, token)
 
-                Result.success("同步成功")
+                Result.success(Unit)
             }
         } catch (e: Exception) {
             Result.failure(e)

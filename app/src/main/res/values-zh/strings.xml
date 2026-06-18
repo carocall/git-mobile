@@ -45,6 +45,8 @@
     <string name="push_failed">推送失败: %s</string>
     <string name="sync_success">同步成功</string>
     <string name="sync_failed">同步失败: %s</string>
+    <string name="sync_pull_failed">拉取失败或存在冲突，请先手动解决</string>
+    <string name="sync_push_failed_status">推送失败: %s</string>
     <string name="source_control">源代码管理</string>
     <string name="back">返回</string>
     <string name="remote_repo">远程仓库</string>

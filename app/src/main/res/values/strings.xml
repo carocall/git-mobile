@@ -121,6 +121,8 @@
     <string name="branch_management">Branch Management</string>
     <string name="local_branches">Local</string>
     <string name="remote_branches">Remote</string>
+    <string name="tags">Tags</string>
+    <string name="tracked">Tracked</string>
     <string name="new_branch">New Branch</string>
     <string name="create_branch_title">Create New Branch</string>
     <string name="branch_checkout_success">Switched to branch %s</string>

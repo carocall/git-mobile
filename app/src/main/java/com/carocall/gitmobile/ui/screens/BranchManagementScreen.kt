@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import com.carocall.gitmobile.R
 import com.carocall.gitmobile.data.git.GitManager
 import com.carocall.gitmobile.data.model.BranchInfo
+import com.carocall.gitmobile.data.model.BranchType
 import com.carocall.gitmobile.ui.component.ErrorDialog
 import com.carocall.gitmobile.ui.component.InputSheet
 import kotlinx.coroutines.launch
@@ -105,12 +106,17 @@ fun BranchManagementScreen(repoRoot: File, onBack: () -> Unit) {
                     onClick = { selectedTabIndex = 1 },
                     text = { Text(stringResource(R.string.remote_branches)) }
                 )
+                Tab(
+                    selected = selectedTabIndex == 2,
+                    onClick = { selectedTabIndex = 2 },
+                    text = { Text(stringResource(R.string.tags)) }
+                )
             }
 
-            val filteredBranches = if (selectedTabIndex == 0) {
-                branches.filter { !it.isRemote }
-            } else {
-                branches.filter { it.isRemote }
+            val filteredBranches = when (selectedTabIndex) {
+                0 -> branches.filter { it.type == BranchType.LOCAL }
+                1 -> branches.filter { it.type == BranchType.REMOTE }
+                else -> branches.filter { it.type == BranchType.TAG }
             }
 
             AnimatedContent(
@@ -124,14 +130,22 @@ fun BranchManagementScreen(repoRoot: File, onBack: () -> Unit) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(
-                                imageVector = if (selectedTabIndex == 0) Icons.Default.AccountTree else Icons.Default.CloudOff,
+                                imageVector = when(selectedTabIndex) {
+                                    0 -> Icons.Default.AccountTree
+                                    1 -> Icons.Default.CloudOff
+                                    else -> Icons.Default.Label
+                                },
                                 contentDescription = null,
                                 modifier = Modifier.size(64.dp),
                                 tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
                             )
                             Spacer(Modifier.height(16.dp))
                             Text(
-                                text = if (selectedTabIndex == 0) "No local branches" else "No remote branches found",
+                                text = when(selectedTabIndex) {
+                                    0 -> "No local branches"
+                                    1 -> "No remote branches found"
+                                    else -> "No tags found"
+                                },
                                 color = MaterialTheme.colorScheme.outline,
                                 style = MaterialTheme.typography.bodyMedium
                             )
@@ -143,17 +157,17 @@ fun BranchManagementScreen(repoRoot: File, onBack: () -> Unit) {
                         contentPadding = PaddingValues(16.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(targetBranches, key = { it.name }) { branch ->
+                        items(targetBranches, key = { it.fullRefName }) { branch ->
                             BranchCard(
                                 branch = branch,
                                 onClick = {
                                     if (branch.isCurrent) return@BranchCard
-                                    if (branch.isRemote) {
+                                    if (branch.type == BranchType.REMOTE) {
                                         branchToCheckoutRemote = branch
                                     } else {
                                         scope.launch {
-                                            GitManager.checkoutBranch(repoRoot, branch.name).onSuccess {
-                                                Toast.makeText(context, context.getString(R.string.branch_checkout_success, branch.name), Toast.LENGTH_SHORT).show()
+                                            GitManager.checkoutBranch(repoRoot, branch.fullRefName).onSuccess {
+                                                Toast.makeText(context, context.getString(R.string.branch_checkout_success, branch.displayName), Toast.LENGTH_SHORT).show()
                                                 refresh()
                                             }.onFailure {
                                                 errorMessage = it.message
@@ -191,8 +205,8 @@ fun BranchManagementScreen(repoRoot: File, onBack: () -> Unit) {
         }
 
         if (branchToCheckoutRemote != null) {
-            val remoteName = branchToCheckoutRemote!!.name
-            val suggestedLocalName = remoteName.substringAfter("/")
+            val displayName = branchToCheckoutRemote!!.displayName
+            val suggestedLocalName = displayName.substringAfter("/")
             InputSheet(
                 title = stringResource(R.string.checkout_remote_title),
                 initialValue = suggestedLocalName,
@@ -200,7 +214,7 @@ fun BranchManagementScreen(repoRoot: File, onBack: () -> Unit) {
                 onConfirm = { localName ->
                     scope.launch {
                         // 基于远程分支创建并检出本地分支
-                        GitManager.createBranch(repoRoot, localName, startPoint = "origin/$remoteName").onSuccess {
+                        GitManager.createBranch(repoRoot, localName, startPoint = branchToCheckoutRemote!!.fullRefName).onSuccess {
                             Toast.makeText(context, context.getString(R.string.branch_checkout_success, localName), Toast.LENGTH_SHORT).show()
                             refresh()
                             branchToCheckoutRemote = null
@@ -217,14 +231,14 @@ fun BranchManagementScreen(repoRoot: File, onBack: () -> Unit) {
             AlertDialog(
                 onDismissRequest = { branchToDelete = null },
                 title = { Text(stringResource(R.string.confirm_delete_title)) },
-                text = { Text(stringResource(R.string.confirm_delete_branch_msg, branchToDelete!!.name)) },
+                text = { Text(stringResource(R.string.confirm_delete_branch_msg, branchToDelete!!.displayName)) },
                 confirmButton = {
                     TextButton(
                         onClick = {
-                            val name = branchToDelete!!.name
+                            val name = branchToDelete!!.fullRefName
                             scope.launch {
                                 GitManager.deleteBranch(repoRoot, name).onSuccess {
-                                    Toast.makeText(context, context.getString(R.string.branch_delete_success, name), Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, context.getString(R.string.branch_delete_success, branchToDelete!!.displayName), Toast.LENGTH_SHORT).show()
                                     refresh()
                                     branchToDelete = null
                                 }.onFailure {
@@ -288,7 +302,11 @@ fun BranchCard(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = if (branch.isRemote) Icons.Default.Cloud else Icons.Default.AccountTree,
+                    imageVector = when(branch.type) {
+                        BranchType.LOCAL -> Icons.Default.AccountTree
+                        BranchType.REMOTE -> Icons.Default.Cloud
+                        BranchType.TAG -> Icons.Default.Label
+                    },
                     contentDescription = null,
                     tint = if (branch.isCurrent) MaterialTheme.colorScheme.onPrimary 
                            else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -301,7 +319,7 @@ fun BranchCard(
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = branch.name,
+                        text = branch.displayName,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = if (branch.isCurrent) FontWeight.Bold else FontWeight.Medium,
                         color = if (branch.isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
@@ -324,6 +342,21 @@ fun BranchCard(
                             )
                         }
                     }
+                    if (branch.isTracked && branch.type == BranchType.REMOTE) {
+                        Spacer(Modifier.width(8.dp))
+                        Surface(
+                            color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f),
+                            shape = RoundedCornerShape(4.dp),
+                            border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.5f))
+                        ) {
+                            Text(
+                                text = stringResource(R.string.tracked),
+                                style = MaterialTheme.typography.labelSmall,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                color = MaterialTheme.colorScheme.secondary
+                            )
+                        }
+                    }
                 }
                 
                 Spacer(Modifier.height(4.dp))
@@ -342,7 +375,7 @@ fun BranchCard(
                 }
             }
 
-            if (!branch.isCurrent && !branch.isRemote) {
+            if (!branch.isCurrent && branch.type == BranchType.LOCAL) {
                 IconButton(
                     onClick = onDelete,
                     modifier = Modifier.size(32.dp)
@@ -354,7 +387,7 @@ fun BranchCard(
                         modifier = Modifier.size(20.dp)
                     )
                 }
-            } else if (branch.isRemote) {
+            } else if (branch.type == BranchType.REMOTE) {
                 Icon(
                     Icons.Default.ChevronRight,
                     contentDescription = null,

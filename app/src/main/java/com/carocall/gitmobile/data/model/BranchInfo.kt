@@ -1,8 +1,14 @@
 package com.carocall.gitmobile.data.model
 
+enum class BranchType {
+    LOCAL, REMOTE, TAG
+}
+
 data class BranchInfo(
-    val name: String,
+    val fullRefName: String,
+    val displayName: String,
+    val type: BranchType,
     val isCurrent: Boolean,
-    val isRemote: Boolean,
-    val shortHash: String = ""
+    val shortHash: String = "",
+    val isTracked: Boolean = false // 是否已被本地追踪
 )

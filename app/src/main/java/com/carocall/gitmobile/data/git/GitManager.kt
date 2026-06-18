@@ -1,14 +1,12 @@
 package com.carocall.gitmobile.data.git
 
-import com.carocall.gitmobile.data.model.BranchInfo
-import com.carocall.gitmobile.data.model.CommitInfo
-import com.carocall.gitmobile.data.model.RepoStatus
-import com.carocall.gitmobile.data.model.RemoteProfile
+import com.carocall.gitmobile.data.model.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.api.ListBranchCommand
 import org.eclipse.jgit.lib.Constants
+import org.eclipse.jgit.lib.RepositoryState
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
 import java.io.File
 
@@ -16,6 +14,12 @@ import java.io.File
 
 object GitManager {
     fun isGitRepo(dir: File): Boolean = File(dir, ".git").exists()
+
+    // 获取首选远程库名称（默认为 origin）
+    private fun getRemoteName(git: Git): String {
+        val remotes = git.remoteList().call()
+        return if (remotes.isNotEmpty()) remotes[0].name else "origin"
+    }
 
     suspend fun initRepo(dir: File): Result<String> = withContext(Dispatchers.IO) {
         try {
@@ -26,20 +30,56 @@ object GitManager {
     suspend fun getBranches(repoRoot: File): List<BranchInfo> = withContext(Dispatchers.IO) {
         try {
             Git.open(repoRoot).use { git ->
-                val currentBranch = git.repository.branch
-                val branches = git.branchList().setListMode(ListBranchCommand.ListMode.ALL).call()
-                branches.map { ref ->
-                    val name = ref.name
-                    val shortName = git.repository.shortenRemoteBranchName(name) ?: name.substringAfter(Constants.R_HEADS).substringAfter(Constants.R_REMOTES)
-                    val isCurrent = shortName == currentBranch
-                    val isRemote = name.startsWith(Constants.R_REMOTES)
-                    BranchInfo(
-                        name = shortName,
-                        isCurrent = isCurrent,
-                        isRemote = isRemote,
+                val repository = git.repository
+                val currentFullBranch = repository.fullBranch
+                
+                // 1. 获取本地分支
+                val localRefs = git.branchList().call()
+                val localBranchNames = localRefs.map { it.name }.toSet()
+                
+                val result = mutableListOf<BranchInfo>()
+                
+                // 处理本地分支
+                localRefs.forEach { ref ->
+                    result.add(BranchInfo(
+                        fullRefName = ref.name,
+                        displayName = repository.shortenRemoteBranchName(ref.name) ?: ref.name.substringAfter(Constants.R_HEADS),
+                        type = BranchType.LOCAL,
+                        isCurrent = ref.name == currentFullBranch,
                         shortHash = ref.objectId.abbreviate(7).name()
-                    )
+                    ))
                 }
+                
+                // 2. 获取远程分支
+                val remoteRefs = git.branchList().setListMode(ListBranchCommand.ListMode.REMOTE).call()
+                remoteRefs.forEach { ref ->
+                    val displayName = repository.shortenRemoteBranchName(ref.name) ?: ref.name.substringAfter(Constants.R_REMOTES)
+                    // 检查是否已被本地追踪（这里简单通过名字匹配，实际可更深层判断）
+                    val isTracked = localBranchNames.any { it.substringAfter(Constants.R_HEADS) == displayName.substringAfter("/") }
+                    
+                    result.add(BranchInfo(
+                        fullRefName = ref.name,
+                        displayName = displayName,
+                        type = BranchType.REMOTE,
+                        isCurrent = false,
+                        shortHash = ref.objectId.abbreviate(7).name(),
+                        isTracked = isTracked
+                    ))
+                }
+                
+                // 3. 获取标签 (Tags)
+                val tagRefs = git.tagList().call()
+                tagRefs.forEach { ref ->
+                    result.add(BranchInfo(
+                        fullRefName = ref.name,
+                        displayName = ref.name.substringAfter(Constants.R_TAGS),
+                        type = BranchType.TAG,
+                        isCurrent = false,
+                        shortHash = ref.objectId.abbreviate(7).name()
+                    ))
+                }
+                
+                result
             }
         } catch (e: Exception) { emptyList() }
     }
@@ -112,14 +152,19 @@ object GitManager {
         try {
             Git.open(repoRoot).use { git ->
                 val s = git.status().call()
-                val branch = git.repository.branch
+                val repository = git.repository
+                val state = repository.repositoryState
                 
                 RepoStatus(
-                    branch = branch,
+                    branch = repository.branch,
                     untracked = s.untracked,
                     modified = s.modified,
                     added = s.added,
-                    removed = s.removed + s.missing
+                    removed = s.removed + s.missing,
+                    isMerging = state == RepositoryState.MERGING,
+                    isRebasing = state == RepositoryState.REBASING || state == RepositoryState.REBASING_INTERACTIVE,
+                    hasConflicts = s.conflicting.isNotEmpty(),
+                    conflicts = s.conflicting
                 )
             }
         } catch (e: Exception) { RepoStatus() }
@@ -238,8 +283,9 @@ object GitManager {
     suspend fun fetch(repoRoot: File, username: String, token: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             Git.open(repoRoot).use { git ->
-                val fetchCmd = git.fetch().setRemote("origin")
-                    .setRemoveDeletedRefs(true) // 关键：开启 Prune 操作，删除远程已不存在的分支缓存
+                val remoteName = getRemoteName(git)
+                val fetchCmd = git.fetch().setRemote(remoteName)
+                    .setRemoveDeletedRefs(true)
                 if (username.isNotBlank() && token.isNotBlank()) {
                     fetchCmd.setCredentialsProvider(UsernamePasswordCredentialsProvider(username, token))
                 }
@@ -252,7 +298,8 @@ object GitManager {
     suspend fun pull(repoRoot: File, username: String, token: String): Result<String> = withContext(Dispatchers.IO) {
         try {
             Git.open(repoRoot).use { git ->
-                val pullCmd = git.pull().setRemote("origin")
+                val remoteName = getRemoteName(git)
+                val pullCmd = git.pull().setRemote(remoteName)
                 if (username.isNotBlank() && token.isNotBlank()) {
                     pullCmd.setCredentialsProvider(UsernamePasswordCredentialsProvider(username, token))
                 }
@@ -268,7 +315,8 @@ object GitManager {
         }
         try {
             Git.open(repoRoot).use { git ->
-                val pushCmd = git.push().setRemote("origin")
+                val remoteName = getRemoteName(git)
+                val pushCmd = git.push().setRemote(remoteName)
                 pushCmd.setCredentialsProvider(UsernamePasswordCredentialsProvider(username, token))
                 pushCmd.call()
                 Result.success("推送成功")
@@ -283,18 +331,19 @@ object GitManager {
         try {
             Git.open(repoRoot).use { git ->
                 val cp = UsernamePasswordCredentialsProvider(username, token)
+                val remoteName = getRemoteName(git)
 
                 // 1. 先尝试 Pull (拉取)
                 try {
-                    val pullCmd = git.pull().setRemote("origin")
+                    val pullCmd = git.pull().setRemote(remoteName)
                     pullCmd.setCredentialsProvider(cp)
                     pullCmd.call()
                 } catch (e: Exception) {
-                    // 忽略拉取错误（例如由于历史不相关导致的失败）
+                    // 忽略拉取错误
                 }
 
                 // 2. 再执行 Push (推送)
-                val pushCmd = git.push().setRemote("origin")
+                val pushCmd = git.push().setRemote(remoteName)
                 pushCmd.setCredentialsProvider(cp)
                 pushCmd.call()
 
@@ -347,9 +396,10 @@ object GitManager {
     suspend fun getHistory(repoRoot: File): List<CommitInfo> = withContext(Dispatchers.IO) {
         try {
             Git.open(repoRoot).use { git ->
+                val remoteName = getRemoteName(git)
                 // 获取远程分支的最新提交 ID (尝试 main 或 master)
-                val remoteHead = git.repository.findRef("refs/remotes/origin/main")?.objectId
-                    ?: git.repository.findRef("refs/remotes/origin/master")?.objectId
+                val remoteHead = git.repository.findRef("refs/remotes/$remoteName/main")?.objectId
+                    ?: git.repository.findRef("refs/remotes/$remoteName/master")?.objectId
                 val remoteHeadName = remoteHead?.name
 
                 val log = git.log().setMaxCount(20).call()

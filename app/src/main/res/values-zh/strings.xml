@@ -121,6 +121,8 @@
     <string name="branch_management">分支管理</string>
     <string name="local_branches">本地</string>
     <string name="remote_branches">远程</string>
+    <string name="tags">标签</string>
+    <string name="tracked">已追踪</string>
     <string name="new_branch">新建分支</string>
     <string name="create_branch_title">创建新分支</string>
     <string name="branch_checkout_success">已切换至分支 %s</string>

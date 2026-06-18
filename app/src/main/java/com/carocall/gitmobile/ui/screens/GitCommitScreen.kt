@@ -356,6 +356,31 @@ fun GitCommitScreen(
             }
 
             if (selectedTabIndex == 0) {
+                if (status.hasConflicts || status.isMerging || status.isRebasing) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.7f)
+                        )
+                    ) {
+                        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Warning, null, tint = MaterialTheme.colorScheme.error)
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                val stateMsg = when {
+                                    status.isMerging -> "Merging - Resolved conflicts to continue"
+                                    status.isRebasing -> "Rebasing - Resolve conflicts to continue"
+                                    else -> "Merge Conflicts detected"
+                                }
+                                Text(stateMsg, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onErrorContainer)
+                                if (status.conflicts.isNotEmpty()) {
+                                    Text("${status.conflicts.size} files have conflicts", fontSize = 12.sp, color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.7f))
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // 提交信息输入框放在变更列表上方
                 OutlinedTextField(
                     value = commitMessage,
@@ -387,6 +412,30 @@ fun GitCommitScreen(
                 }
 
                 LazyColumn(Modifier.fillMaxSize()) {
+                    if (status.hasConflicts) {
+                        item {
+                            Row(
+                                Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.error.copy(alpha = 0.1f)).padding(horizontal = 16.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Conflicts (${status.conflicts.size})", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.error)
+                            }
+                        }
+                        items(status.conflicts.toList()) { path ->
+                            Row(
+                                Modifier.fillMaxWidth().clickable { 
+                                    // 点击冲突文件可以查看或解决（目前先看Diff）
+                                    viewFileDiff("HEAD", path)
+                                }.padding(horizontal = 16.dp, vertical = 8.dp), 
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.Dangerous, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp))
+                                Spacer(Modifier.width(12.dp))
+                                Text(path, fontSize = 14.sp, color = MaterialTheme.colorScheme.error, modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+
                     item {
                         Row(
                             Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)).padding(horizontal = 16.dp, vertical = 4.dp),

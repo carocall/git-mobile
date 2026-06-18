@@ -46,16 +46,58 @@ fun BranchManagementScreen(repoRoot: File, onBack: () -> Unit) {
     var branchToCheckoutRemote by remember { mutableStateOf<BranchInfo?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var isRefreshing by remember { mutableStateOf(false) }
+    var refreshProgress by remember { mutableStateOf("") }
+    
+    var pendingCheckoutBranch by remember { mutableStateOf<BranchInfo?>(null) }
+    var showDirtyWarning by remember { mutableStateOf(false) }
 
     fun refresh(fetchRemote: Boolean = false) {
         scope.launch {
             if (fetchRemote) {
                 isRefreshing = true
+                refreshProgress = "Fetching..."
                 val (_, user, token) = GitManager.getRemoteConfig(repoRoot)
-                GitManager.fetch(repoRoot, user, token)
+                val monitor = object : org.eclipse.jgit.lib.EmptyProgressMonitor() {
+                    override fun beginTask(title: String?, totalWork: Int) {
+                        refreshProgress = title ?: "Working..."
+                    }
+                    override fun update(completed: Int) {
+                        // 如果有总进度可以显示百分比
+                    }
+                }
+                GitManager.fetch(repoRoot, user, token, progressMonitor = monitor)
                 isRefreshing = false
+                refreshProgress = ""
             }
             branches = GitManager.getBranches(repoRoot)
+        }
+    }
+
+    fun executeCheckout(branch: BranchInfo) {
+        if (branch.type == BranchType.REMOTE) {
+            branchToCheckoutRemote = branch
+        } else {
+            scope.launch {
+                GitManager.checkoutBranch(repoRoot, branch.fullRefName).onSuccess {
+                    Toast.makeText(context, context.getString(R.string.branch_checkout_success, branch.displayName), Toast.LENGTH_SHORT).show()
+                    refresh()
+                }.onFailure {
+                    errorMessage = it.message
+                }
+            }
+        }
+    }
+
+    fun onCheckoutClick(branch: BranchInfo) {
+        if (branch.isCurrent) return
+        scope.launch {
+            val status = GitManager.getStatus(repoRoot)
+            if (status.hasChanges) {
+                pendingCheckoutBranch = branch
+                showDirtyWarning = true
+            } else {
+                executeCheckout(branch)
+            }
         }
     }
 
@@ -71,11 +113,21 @@ fun BranchManagementScreen(repoRoot: File, onBack: () -> Unit) {
                     }
                 },
                 actions = {
-                    IconButton(onClick = { refresh(true) }, enabled = !isRefreshing) {
-                        if (isRefreshing) {
-                            CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                        } else {
-                            Icon(Icons.Default.Refresh, stringResource(R.string.refresh))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (isRefreshing && refreshProgress.isNotBlank()) {
+                            Text(
+                                text = refreshProgress,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(Modifier.width(8.dp))
+                        }
+                        IconButton(onClick = { refresh(true) }, enabled = !isRefreshing) {
+                            if (isRefreshing) {
+                                CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                            } else {
+                                Icon(Icons.Default.Refresh, stringResource(R.string.refresh))
+                            }
                         }
                     }
                 }
@@ -160,21 +212,7 @@ fun BranchManagementScreen(repoRoot: File, onBack: () -> Unit) {
                         items(targetBranches, key = { it.fullRefName }) { branch ->
                             BranchCard(
                                 branch = branch,
-                                onClick = {
-                                    if (branch.isCurrent) return@BranchCard
-                                    if (branch.type == BranchType.REMOTE) {
-                                        branchToCheckoutRemote = branch
-                                    } else {
-                                        scope.launch {
-                                            GitManager.checkoutBranch(repoRoot, branch.fullRefName).onSuccess {
-                                                Toast.makeText(context, context.getString(R.string.branch_checkout_success, branch.displayName), Toast.LENGTH_SHORT).show()
-                                                refresh()
-                                            }.onFailure {
-                                                errorMessage = it.message
-                                            }
-                                        }
-                                    }
-                                },
+                                onClick = { onCheckoutClick(branch) },
                                 onDelete = {
                                     branchToDelete = branch
                                 }
@@ -252,6 +290,29 @@ fun BranchManagementScreen(repoRoot: File, onBack: () -> Unit) {
                 },
                 dismissButton = {
                     TextButton(onClick = { branchToDelete = null }) {
+                        Text(stringResource(R.string.cancel))
+                    }
+                }
+            )
+        }
+
+        if (showDirtyWarning && pendingCheckoutBranch != null) {
+            AlertDialog(
+                onDismissRequest = { showDirtyWarning = false },
+                title = { Text(stringResource(R.string.dirty_checkout_title)) },
+                text = { Text(stringResource(R.string.dirty_checkout_msg)) },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showDirtyWarning = false
+                            executeCheckout(pendingCheckoutBranch!!)
+                        }
+                    ) {
+                        Text(stringResource(R.string.confirm), color = MaterialTheme.colorScheme.error)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDirtyWarning = false }) {
                         Text(stringResource(R.string.cancel))
                     }
                 }

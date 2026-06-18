@@ -118,30 +118,31 @@ object GitManager {
         try {
             Git.open(repoRoot).use { git ->
                 val status = git.status().call()
-                val toCheckout = mutableListOf<String>()
-                val toDelete = mutableListOf<String>()
+                val trackedToDiscard = mutableListOf<String>()
+                val untrackedToDelete = mutableListOf<String>()
 
                 for (path in paths) {
                     if (status.untracked.contains(path) || status.untrackedFolders.any { path.startsWith(it) }) {
-                        toDelete.add(path)
+                        untrackedToDelete.add(path)
                     } else {
-                        toCheckout.add(path)
+                        trackedToDiscard.add(path)
                     }
                 }
 
-                if (toCheckout.isNotEmpty()) {
+                // 1. 对于已追踪的文件：使用 Checkout 命令恢复
+                if (trackedToDiscard.isNotEmpty()) {
                     val checkoutCmd = git.checkout()
-                    toCheckout.forEach { checkoutCmd.addPath(it) }
+                    trackedToDiscard.forEach { checkoutCmd.addPath(it) }
                     checkoutCmd.call()
                 }
 
-                if (toDelete.isNotEmpty()) {
-                    toDelete.forEach { path ->
-                        val file = File(repoRoot, path)
-                        if (file.exists()) {
-                            if (file.isDirectory) file.deleteRecursively() else file.delete()
-                        }
-                    }
+                // 2. 对于未追踪的文件：使用 Clean 命令清理
+                if (untrackedToDelete.isNotEmpty()) {
+                    git.clean()
+                        .setPaths(untrackedToDelete.toSet())
+                        .setCleanDirectories(true)
+                        .setIgnore(false)
+                        .call()
                 }
                 Result.success(Unit)
             }
@@ -282,12 +283,18 @@ object GitManager {
         } catch (e: Exception) { }
     }
 
-    suspend fun fetch(repoRoot: File, username: String, token: String): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend fun fetch(
+        repoRoot: File,
+        username: String,
+        token: String,
+        progressMonitor: org.eclipse.jgit.lib.ProgressMonitor? = null
+    ): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             Git.open(repoRoot).use { git ->
                 val remoteName = getRemoteName(git)
                 val fetchCmd = git.fetch().setRemote(remoteName)
                     .setRemoveDeletedRefs(true)
+                    .setProgressMonitor(progressMonitor)
                 if (username.isNotBlank() && token.isNotBlank()) {
                     fetchCmd.setCredentialsProvider(UsernamePasswordCredentialsProvider(username, token))
                 }
@@ -297,11 +304,17 @@ object GitManager {
         } catch (e: Exception) { Result.failure(e) }
     }
 
-    suspend fun pull(repoRoot: File, username: String, token: String): Result<String> = withContext(Dispatchers.IO) {
+    suspend fun pull(
+        repoRoot: File,
+        username: String,
+        token: String,
+        progressMonitor: org.eclipse.jgit.lib.ProgressMonitor? = null
+    ): Result<String> = withContext(Dispatchers.IO) {
         try {
             Git.open(repoRoot).use { git ->
                 val remoteName = getRemoteName(git)
                 val pullCmd = git.pull().setRemote(remoteName)
+                    .setProgressMonitor(progressMonitor)
                 if (username.isNotBlank() && token.isNotBlank()) {
                     pullCmd.setCredentialsProvider(UsernamePasswordCredentialsProvider(username, token))
                 }
@@ -311,7 +324,12 @@ object GitManager {
         } catch (e: Exception) { Result.failure(e) }
     }
 
-    suspend fun push(repoRoot: File, username: String, token: String): Result<String> = withContext(Dispatchers.IO) {
+    suspend fun push(
+        repoRoot: File,
+        username: String,
+        token: String,
+        progressMonitor: org.eclipse.jgit.lib.ProgressMonitor? = null
+    ): Result<String> = withContext(Dispatchers.IO) {
         if (username.isBlank() || token.isBlank()) {
             return@withContext Result.failure(Exception("该仓库未配置身份"))
         }
@@ -322,6 +340,7 @@ object GitManager {
                 val pushCmd = git.push()
                     .setRemote(remoteName)
                     .setCredentialsProvider(UsernamePasswordCredentialsProvider(username, token))
+                    .setProgressMonitor(progressMonitor)
 
                 pushCmd.call()
                 Result.success("推送成功")
@@ -335,7 +354,8 @@ object GitManager {
         username: String,
         token: String,
         pullFailedMsg: String,
-        pushFailedPrefix: String
+        pushFailedPrefix: String,
+        progressMonitor: org.eclipse.jgit.lib.ProgressMonitor? = null
     ): Result<Unit> = withContext(Dispatchers.IO) {
         if (username.isBlank() || token.isBlank()) {
             return@withContext Result.failure(Exception("AUTH_MISSING"))
@@ -349,6 +369,7 @@ object GitManager {
                 val pullResult = git.pull()
                     .setRemote(remoteName)
                     .setCredentialsProvider(cp)
+                    .setProgressMonitor(progressMonitor)
                     .call()
 
                 if (!pullResult.isSuccessful) {
@@ -360,6 +381,7 @@ object GitManager {
                 val pushResults = git.push()
                     .setRemote(remoteName)
                     .setCredentialsProvider(cp)
+                    .setProgressMonitor(progressMonitor)
                     .call()
                 
                 // 检查推送结果

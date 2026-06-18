@@ -145,5 +145,7 @@
     <string name="checkout_remote_title">Checkout Remote Branch</string>
     <string name="checkout_remote_msg">Create a local branch from \"%s\":</string>
     <string name="checkout">Checkout</string>
+    <string name="dirty_checkout_title">Uncommitted Changes</string>
+    <string name="dirty_checkout_msg">You have uncommitted changes. Switching branches may cause them to be lost or lead to conflicts. Do you want to proceed?</string>
     <string name="refresh">Refresh</string>
 </resources>

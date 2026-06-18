@@ -145,5 +145,7 @@
     <string name="checkout_remote_title">检出远程分支</string>
     <string name="checkout_remote_msg">基于 \"%s\" 创建本地分支：</string>
     <string name="checkout">检出</string>
+    <string name="dirty_checkout_title">存在未提交的更改</string>
+    <string name="dirty_checkout_msg">你当前有未提交的更改。切换分支可能会导致更改丢失或产生冲突。是否继续？</string>
     <string name="refresh">刷新</string>
 </resources>

@@ -55,6 +55,7 @@ fun GitCommitScreen(
 
     var sessionToken by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
+    var loadingStatus by remember { mutableStateOf("") }
     var remoteConfig by remember { mutableStateOf(Triple("", "", "")) }
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     var isInitialLoading by remember { mutableStateOf(true) }
@@ -126,7 +127,13 @@ fun GitCommitScreen(
     fun performPull(user: String, token: String) {
         scope.launch {
             isLoading = true
-            GitManager.pull(repoRoot, user, token).onSuccess {
+            loadingStatus = context.getString(R.string.pull)
+            val monitor = object : org.eclipse.jgit.lib.EmptyProgressMonitor() {
+                override fun beginTask(title: String?, totalWork: Int) {
+                    loadingStatus = title ?: context.getString(R.string.pull)
+                }
+            }
+            GitManager.pull(repoRoot, user, token, progressMonitor = monitor).onSuccess {
                 Toast.makeText(context, context.getString(R.string.pull_success), Toast.LENGTH_SHORT).show()
                 if (token.isNotBlank()) sessionToken = token
                 refresh()
@@ -140,13 +147,20 @@ fun GitCommitScreen(
                 }
             }
             isLoading = false
+            loadingStatus = ""
         }
     }
 
     fun performPush(user: String, token: String) {
         scope.launch {
             isLoading = true
-            GitManager.push(repoRoot, user, token).onSuccess {
+            loadingStatus = context.getString(R.string.push)
+            val monitor = object : org.eclipse.jgit.lib.EmptyProgressMonitor() {
+                override fun beginTask(title: String?, totalWork: Int) {
+                    loadingStatus = title ?: context.getString(R.string.push)
+                }
+            }
+            GitManager.push(repoRoot, user, token, progressMonitor = monitor).onSuccess {
                 Toast.makeText(context, context.getString(R.string.push_success), Toast.LENGTH_SHORT).show()
                 if (token.isNotBlank()) sessionToken = token
                 refresh()
@@ -160,6 +174,7 @@ fun GitCommitScreen(
                 }
             }
             isLoading = false
+            loadingStatus = ""
         }
     }
 
@@ -169,13 +184,20 @@ fun GitCommitScreen(
         
         scope.launch {
             isLoading = true
+            loadingStatus = context.getString(R.string.syncing)
+            val monitor = object : org.eclipse.jgit.lib.EmptyProgressMonitor() {
+                override fun beginTask(title: String?, totalWork: Int) {
+                    loadingStatus = title ?: context.getString(R.string.syncing)
+                }
+            }
             GitManager.sync(
                 repoRoot, 
                 url, 
                 user, 
                 token,
                 pullFailedMsg = pullFailedMsg,
-                pushFailedPrefix = pushFailedPrefix
+                pushFailedPrefix = pushFailedPrefix,
+                progressMonitor = monitor
             ).onSuccess {
                 Toast.makeText(context, context.getString(R.string.sync_success), Toast.LENGTH_SHORT).show()
                 if (token.isNotBlank()) sessionToken = token
@@ -190,6 +212,7 @@ fun GitCommitScreen(
                 }
             }
             isLoading = false
+            loadingStatus = ""
         }
     }
 
@@ -682,7 +705,7 @@ fun GitCommitScreen(
         }
 
         if (isLoading) {
-            AlertDialog(onDismissRequest = {}, confirmButton = {}, text = { Row(verticalAlignment = Alignment.CenterVertically) { CircularProgressIndicator(); Spacer(Modifier.width(16.dp)); Text(stringResource(R.string.syncing)) } })
+            AlertDialog(onDismissRequest = {}, confirmButton = {}, text = { Row(verticalAlignment = Alignment.CenterVertically) { CircularProgressIndicator(); Spacer(Modifier.width(16.dp)); Text(loadingStatus.ifBlank { stringResource(R.string.syncing) }) } })
         }
 
         errorMessage?.let { ErrorDialog(error = it, onDismiss = { errorMessage = null }) }

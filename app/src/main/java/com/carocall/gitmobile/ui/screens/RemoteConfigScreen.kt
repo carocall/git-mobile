@@ -73,6 +73,8 @@ fun RemoteConfigScreen(repoRoot: File, onBack: () -> Unit) {
                         onUse = {
                             scope.launch {
                                 GitManager.saveRemoteConfig(repoRoot, profile.url, profile.user, profile.token)
+                                // 切换后自动获取最新的分支信息
+                                GitManager.fetch(repoRoot, profile.user, profile.token)
                                 Toast.makeText(context, context.getString(R.string.remote_config_saved), Toast.LENGTH_SHORT).show()
                                 refresh()
                             }

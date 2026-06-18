@@ -44,9 +44,16 @@ fun BranchManagementScreen(repoRoot: File, onBack: () -> Unit) {
     var branchToDelete by remember { mutableStateOf<BranchInfo?>(null) }
     var branchToCheckoutRemote by remember { mutableStateOf<BranchInfo?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var isRefreshing by remember { mutableStateOf(false) }
 
-    fun refresh() {
+    fun refresh(fetchRemote: Boolean = false) {
         scope.launch {
+            if (fetchRemote) {
+                isRefreshing = true
+                val (_, user, token) = GitManager.getRemoteConfig(repoRoot)
+                GitManager.fetch(repoRoot, user, token)
+                isRefreshing = false
+            }
             branches = GitManager.getBranches(repoRoot)
         }
     }
@@ -60,6 +67,15 @@ fun BranchManagementScreen(repoRoot: File, onBack: () -> Unit) {
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back))
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { refresh(true) }, enabled = !isRefreshing) {
+                        if (isRefreshing) {
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                        } else {
+                            Icon(Icons.Default.Refresh, stringResource(R.string.refresh))
+                        }
                     }
                 }
             )

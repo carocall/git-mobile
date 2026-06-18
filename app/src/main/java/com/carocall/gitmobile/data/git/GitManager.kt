@@ -235,6 +235,20 @@ object GitManager {
         } catch (e: Exception) { }
     }
 
+    suspend fun fetch(repoRoot: File, username: String, token: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            Git.open(repoRoot).use { git ->
+                val fetchCmd = git.fetch().setRemote("origin")
+                    .setRemoveDeletedRefs(true) // 关键：开启 Prune 操作，删除远程已不存在的分支缓存
+                if (username.isNotBlank() && token.isNotBlank()) {
+                    fetchCmd.setCredentialsProvider(UsernamePasswordCredentialsProvider(username, token))
+                }
+                fetchCmd.call()
+                Result.success(Unit)
+            }
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
     suspend fun pull(repoRoot: File, username: String, token: String): Result<String> = withContext(Dispatchers.IO) {
         try {
             Git.open(repoRoot).use { git ->

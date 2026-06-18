@@ -141,4 +141,5 @@
     <string name="checkout_remote_title">Checkout Remote Branch</string>
     <string name="checkout_remote_msg">Create a local branch from \"%s\":</string>
     <string name="checkout">Checkout</string>
+    <string name="refresh">Refresh</string>
 </resources>

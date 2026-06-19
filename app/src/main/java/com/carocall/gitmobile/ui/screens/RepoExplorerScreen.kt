@@ -5,6 +5,11 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +22,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Article
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Audiotrack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.CreateNewFolder
@@ -86,6 +92,9 @@ fun RepoExplorerScreen(repoRoot: File, onBackToRepos: () -> Unit, onOpenFile: (F
     var showRenameDialog by remember { mutableStateOf<File?>(null) }
     var showDetailsDialog by remember { mutableStateOf<File?>(null) }
 
+    // Speed Dial 状态
+    var isFabExpanded by remember { mutableStateOf(false) }
+
     fun refresh() {
         files = currentDir.listFiles()?.toList()
             ?.filter { it.name != ".git" }
@@ -97,7 +106,11 @@ fun RepoExplorerScreen(repoRoot: File, onBackToRepos: () -> Unit, onOpenFile: (F
 
     // 处理系统返回键
     BackHandler {
-        if (currentDirPath == repoRoot.absolutePath) onBackToRepos() else {
+        if (isFabExpanded) {
+            isFabExpanded = false
+        } else if (currentDirPath == repoRoot.absolutePath) {
+            onBackToRepos()
+        } else {
             currentDirPath = File(currentDirPath).parentFile?.absolutePath ?: repoRoot.absolutePath
         }
     }
@@ -134,9 +147,36 @@ fun RepoExplorerScreen(repoRoot: File, onBackToRepos: () -> Unit, onOpenFile: (F
         },
         floatingActionButton = {
             Column(horizontalAlignment = Alignment.End) {
-                FloatingActionButton(onClick = { importLauncher.launch("*/*") }, modifier = Modifier.padding(bottom = 8.dp)) { Icon(Icons.Default.UploadFile, null) }
-                FloatingActionButton(onClick = { showCreateDialog = true }, modifier = Modifier.padding(bottom = 8.dp)) { Icon(Icons.Default.CreateNewFolder, null) }
-                FloatingActionButton(onClick = { showCreateDialog = false }) { Icon(Icons.Default.Add, null) }
+                // 子按钮列表
+                AnimatedVisibility(
+                    visible = isFabExpanded,
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically()
+                ) {
+                    Column(horizontalAlignment = Alignment.End) {
+                        FloatingActionButton(
+                            onClick = { isFabExpanded = false; importLauncher.launch("*/*") },
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        ) { Icon(Icons.Default.UploadFile, null) }
+
+                        FloatingActionButton(
+                            onClick = { isFabExpanded = false; showCreateDialog = true },
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        ) { Icon(Icons.Default.CreateNewFolder, null) }
+
+                        FloatingActionButton(
+                            onClick = { isFabExpanded = false; showCreateDialog = false },
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        ) { Icon(Icons.Default.Add, null) }
+                    }
+                }
+                // 主切换按钮
+                FloatingActionButton(
+                    onClick = { isFabExpanded = !isFabExpanded },
+                    containerColor = if (isFabExpanded) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primaryContainer
+                ) {
+                    Icon(if (isFabExpanded) Icons.Default.Close else Icons.Default.Add, null)
+                }
             }
         }
     ) { padding ->

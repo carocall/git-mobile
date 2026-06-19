@@ -1,6 +1,12 @@
 package com.carocall.gitmobile.ui.screens
 
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -53,6 +59,8 @@ fun RepoListScreen(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     val dateFormat = remember { SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()) }
 
+    var isFabExpanded by remember { mutableStateOf(false) }
+
     fun refreshRepos() {
         val list = rootDir.listFiles()?.filter { 
             it.isDirectory && File(it, ".git").exists() 
@@ -64,6 +72,10 @@ fun RepoListScreen(
     }
 
     LaunchedEffect(sortOrder) { refreshRepos() }
+
+    BackHandler(enabled = isFabExpanded) {
+        isFabExpanded = false
+    }
 
     Scaffold(
         topBar = {
@@ -78,15 +90,31 @@ fun RepoListScreen(
         },
         floatingActionButton = {
             Column(horizontalAlignment = Alignment.End) {
+                AnimatedVisibility(
+                    visible = isFabExpanded,
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically()
+                ) {
+                    Column(horizontalAlignment = Alignment.End) {
+                        FloatingActionButton(
+                            onClick = { isFabExpanded = false; showCloneDialog = true },
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            modifier = Modifier.padding(bottom = 12.dp)
+                        ) { Icon(Icons.Default.CloudDownload, stringResource(R.string.clone_repo)) }
+
+                        FloatingActionButton(
+                            onClick = { isFabExpanded = false; showCreateDialog = true },
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            modifier = Modifier.padding(bottom = 12.dp)
+                        ) { Icon(Icons.Default.Add, stringResource(R.string.create_repo)) }
+                    }
+                }
                 FloatingActionButton(
-                    onClick = { showCloneDialog = true },
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    modifier = Modifier.padding(bottom = 12.dp)
-                ) { Icon(Icons.Default.CloudDownload, stringResource(R.string.clone_repo)) }
-                FloatingActionButton(
-                    onClick = { showCreateDialog = true },
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer
-                ) { Icon(Icons.Default.Add, stringResource(R.string.create_repo)) }
+                    onClick = { isFabExpanded = !isFabExpanded },
+                    containerColor = if (isFabExpanded) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primaryContainer
+                ) {
+                    Icon(if (isFabExpanded) Icons.Default.Close else Icons.Default.Add, null)
+                }
             }
         }
     ) { padding ->

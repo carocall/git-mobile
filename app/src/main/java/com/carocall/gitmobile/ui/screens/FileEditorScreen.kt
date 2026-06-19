@@ -30,6 +30,7 @@ import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
 import androidx.compose.ui.res.stringResource
 import com.carocall.gitmobile.R
+import com.carocall.gitmobile.data.SettingsManager
 import com.carocall.gitmobile.utils.EditorConfig
 import com.carocall.gitmobile.utils.isBinaryFile
 import com.carocall.gitmobile.utils.openFileExternally
@@ -49,6 +50,7 @@ import java.io.InputStreamReader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.io.File
 
 /**
@@ -89,6 +91,10 @@ fun FileEditorScreen(file: File, onBack: () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NovelEditor(file: File, onBack: () -> Unit) {
+    val context = LocalContext.current
+    val settingsManager = remember { SettingsManager(context) }
+    val scope = rememberCoroutineScope()
+
     var text by remember { mutableStateOf(file.readText()) }
     var original by remember { mutableStateOf(text) }
     var showExitDialog by remember { mutableStateOf(false) }
@@ -104,9 +110,16 @@ fun NovelEditor(file: File, onBack: () -> Unit) {
 
     BackHandler(enabled = true, onBack = handleBack)
     
-    var fontSize by remember { mutableFloatStateOf(18f) }
-    var isSerif by remember { mutableStateOf(true) }
-    var bgColor by remember { mutableStateOf(Color(0xFFF5F2E9)) } 
+    val savedFontSize by settingsManager.novelFontSizeFlow.collectAsState(initial = 18f)
+    val savedIsSerif by settingsManager.novelIsSerifFlow.collectAsState(initial = true)
+    val savedBgColorInt by settingsManager.novelBgColorFlow.collectAsState(initial = null)
+
+    var fontSize by remember(savedFontSize) { mutableFloatStateOf(savedFontSize) }
+    var isSerif by remember(savedIsSerif) { mutableStateOf(savedIsSerif) }
+    var bgColor by remember(savedBgColorInt) { 
+        mutableStateOf(savedBgColorInt?.let { Color(it) } ?: Color(0xFFF5F2E9)) 
+    } 
+
     var showSettings by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
 
@@ -187,21 +200,48 @@ fun NovelEditor(file: File, onBack: () -> Unit) {
                     // 字体设置
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(stringResource(R.string.serif_font), modifier = Modifier.weight(1f))
-                        Switch(checked = isSerif, onCheckedChange = { isSerif = it })
+                        Switch(
+                            checked = isSerif,
+                            onCheckedChange = { 
+                                isSerif = it 
+                                scope.launch { settingsManager.saveNovelIsSerif(it) }
+                            }
+                        )
                     }
                     
                     Spacer(Modifier.height(16.dp))
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(stringResource(R.string.font_size), modifier = Modifier.width(48.dp))
-                        Slider(value = fontSize, onValueChange = { fontSize = it }, valueRange = 12f..32f, modifier = Modifier.weight(1f))
+                        Slider(
+                            value = fontSize,
+                            onValueChange = { fontSize = it },
+                            onValueChangeFinished = {
+                                scope.launch { settingsManager.saveNovelFontSize(fontSize) }
+                            },
+                            valueRange = 12f..32f,
+                            modifier = Modifier.weight(1f)
+                        )
                         Text("${fontSize.toInt()}", modifier = Modifier.padding(start = 8.dp))
                     }
                     Spacer(Modifier.height(24.dp))
                     Text(stringResource(R.string.bg_color))
                     Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.padding(top = 12.dp)) {
                         themes.forEach { color ->
-                            Box(modifier = Modifier.size(40.dp).background(color, CircleShape).border(if (bgColor == color) 2.dp else 1.dp, if (bgColor == color) MaterialTheme.colorScheme.primary else Color.LightGray, CircleShape).clickable { bgColor = color })
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .background(color, CircleShape)
+                                    .border(
+                                        if (bgColor == color) 2.dp else 1.dp,
+                                        if (bgColor == color) MaterialTheme.colorScheme.primary else Color.LightGray,
+                                        CircleShape
+                                    )
+                                    .clickable { 
+                                        bgColor = color 
+                                        scope.launch { settingsManager.saveNovelBgColor(color.toArgb()) }
+                                    }
+                            )
                         }
                     }
                 }

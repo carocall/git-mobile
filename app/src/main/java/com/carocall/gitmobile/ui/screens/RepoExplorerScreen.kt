@@ -156,7 +156,14 @@ fun RepoExplorerScreen(repoRoot: File, onBackToRepos: () -> Unit, onOpenFile: (F
                     val iconTint = EditorConfig.getIconTint(file)
 
                     ListItem(
-                        headlineContent = { Text(file.name, color = color) },
+                        headlineContent = {
+                            Text(
+                                text = file.name,
+                                color = color,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        },
                         leadingContent = { Icon(fileIcon, null, tint = iconTint) },
                         trailingContent = {
                             var menuOpen by remember { mutableStateOf(false) }

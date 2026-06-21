@@ -41,8 +41,8 @@ fun RemoteConfigScreen(repoRoot: File, onBack: () -> Unit) {
     fun refresh() {
         scope.launch {
             profiles = GitManager.getRemoteProfiles(repoRoot)
-            val (url, _, _) = GitManager.getRemoteConfig(repoRoot)
-            currentRemoteUrl = url
+            val config = GitManager.getRemoteConfig(repoRoot)
+            currentRemoteUrl = config.url
         }
     }
 
@@ -72,7 +72,7 @@ fun RemoteConfigScreen(repoRoot: File, onBack: () -> Unit) {
                         isInUse = profile.url == currentRemoteUrl,
                         onUse = {
                             scope.launch {
-                                GitManager.saveRemoteConfig(repoRoot, profile.url, profile.user, profile.token)
+                                GitManager.saveRemoteConfig(repoRoot, profile)
                                 // 切换后自动获取最新的分支信息
                                 GitManager.fetch(repoRoot, profile.user, profile.token)
                                 Toast.makeText(context, context.getString(R.string.remote_config_saved), Toast.LENGTH_SHORT).show()
@@ -115,9 +115,9 @@ fun RemoteConfigScreen(repoRoot: File, onBack: () -> Unit) {
             RemoteProfileSheet(
                 title = stringResource(R.string.add_remote_title),
                 onDismiss = { showAddDialog = false },
-                onConfirm = { name, url, user, token ->
+                onConfirm = { profile ->
                     scope.launch {
-                        GitManager.saveRemoteProfile(repoRoot, RemoteProfile(name, url, user, token))
+                        GitManager.saveRemoteProfile(repoRoot, profile)
                         refresh()
                         showAddDialog = false
                     }
@@ -130,12 +130,12 @@ fun RemoteConfigScreen(repoRoot: File, onBack: () -> Unit) {
                 title = stringResource(R.string.edit_remote),
                 initialProfile = editingProfile,
                 onDismiss = { editingProfile = null },
-                onConfirm = { name, url, user, token ->
+                onConfirm = { profile ->
                     scope.launch {
-                        if (name != editingProfile?.name) {
+                        if (profile.name != editingProfile?.name) {
                             GitManager.deleteRemoteProfile(repoRoot, editingProfile!!.name)
                         }
-                        GitManager.saveRemoteProfile(repoRoot, RemoteProfile(name, url, user, token))
+                        GitManager.saveRemoteProfile(repoRoot, profile)
                         refresh()
                         editingProfile = null
                     }

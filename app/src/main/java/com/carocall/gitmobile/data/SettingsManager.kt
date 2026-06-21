@@ -24,6 +24,8 @@ class SettingsManager(private val context: Context) {
         private val NOVEL_FONT_SIZE_KEY = floatPreferencesKey("novel_font_size")
         private val NOVEL_IS_SERIF_KEY = booleanPreferencesKey("novel_is_serif")
         private val NOVEL_BG_COLOR_KEY = intPreferencesKey("novel_bg_color")
+        private val GLOBAL_GIT_NAME_KEY = stringPreferencesKey("global_git_name")
+        private val GLOBAL_GIT_EMAIL_KEY = stringPreferencesKey("global_git_email")
     }
 
     val themeModeFlow: Flow<ThemeMode> = context.dataStore.data
@@ -47,6 +49,12 @@ class SettingsManager(private val context: Context) {
     val novelBgColorFlow: Flow<Int?> = context.dataStore.data
         .map { it[NOVEL_BG_COLOR_KEY] }
 
+    val globalGitNameFlow: Flow<String> = context.dataStore.data
+        .map { it[GLOBAL_GIT_NAME_KEY] ?: "" }
+
+    val globalGitEmailFlow: Flow<String> = context.dataStore.data
+        .map { it[GLOBAL_GIT_EMAIL_KEY] ?: "" }
+
     suspend fun saveThemeMode(themeMode: ThemeMode) {
         context.dataStore.edit { preferences ->
             preferences[THEME_MODE_KEY] = themeMode.name
@@ -69,5 +77,12 @@ class SettingsManager(private val context: Context) {
 
     suspend fun saveNovelBgColor(color: Int) {
         context.dataStore.edit { it[NOVEL_BG_COLOR_KEY] = color }
+    }
+
+    suspend fun saveGlobalGitIdentity(name: String, email: String) {
+        context.dataStore.edit { preferences ->
+            preferences[GLOBAL_GIT_NAME_KEY] = name
+            preferences[GLOBAL_GIT_EMAIL_KEY] = email
+        }
     }
 }

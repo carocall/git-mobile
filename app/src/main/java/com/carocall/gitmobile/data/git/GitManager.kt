@@ -178,30 +178,32 @@ object GitManager {
         } catch (e: Exception) { RepoStatus() }
     }
 
-    suspend fun commit(repoRoot: File, message: String, files: List<String>): Result<String> = withContext(Dispatchers.IO) {
+    suspend fun commit(repoRoot: File, message: String, files: List<String>, authorName: String? = null, authorEmail: String? = null): Result<String> = withContext(Dispatchers.IO) {
         try {
             Git.open(repoRoot).use { git ->
                 if (files.isEmpty()) {
-                    // 提交所有变更，包含新增、修改和删除
-                    git.add().addFilepattern(".").call() // 处理新增和修改
-                    git.add().addFilepattern(".").setUpdate(true).call() // 处理修改和删除
+                    git.add().addFilepattern(".").call()
+                    git.add().addFilepattern(".").setUpdate(true).call()
                 } else {
-                    // 针对选中的文件处理
                     for (path in files) {
                         val file = File(repoRoot, path)
                         if (file.exists()) {
                             git.add().addFilepattern(path).call()
                         } else {
-                            // 文件不存在，说明是删除操作，需要从索引中移除
-                            try {
-                                git.rm().addFilepattern(path).call()
-                            } catch (e: Exception) {
-                                // 如果文件从未被 track 过就删除了，rm 会报错，这里忽略即可
-                            }
+                            try { git.rm().addFilepattern(path).call() } catch (e: Exception) { }
                         }
                     }
                 }
-                git.commit().setMessage(message).call()
+                
+                val commitCmd = git.commit().setMessage(message)
+                
+                // 显式设置作者和提交者，防止回退到 "root"
+                if (!authorName.isNullOrBlank() && !authorEmail.isNullOrBlank()) {
+                    val ident = org.eclipse.jgit.lib.PersonIdent(authorName, authorEmail)
+                    commitCmd.setAuthor(ident).setCommitter(ident)
+                }
+                
+                commitCmd.call()
                 Result.success("提交成功")
             }
         } catch (e: Exception) { Result.failure(e) }
@@ -224,7 +226,7 @@ object GitManager {
     }
 
     // 获取保存的远程地址、用户名和 Token
-    suspend fun getRemoteConfig(repoRoot: File): Triple<String, String, String> = withContext(Dispatchers.IO) {
+    suspend fun getRemoteConfig(repoRoot: File): RemoteProfile = withContext(Dispatchers.IO) {
         try {
             Git.open(repoRoot).use { git ->
                 val config = git.repository.config
@@ -232,20 +234,44 @@ object GitManager {
                 val url = config.getString("remote", remoteName, "url") ?: ""
                 val user = config.getString("gitmobile", "auth", "user") ?: ""
                 val token = config.getString("gitmobile", "auth", "token") ?: ""
-                Triple(url, user, token)
+                RemoteProfile("Active", url, user, token)
             }
-        } catch (e: Exception) { Triple("", "", "") }
+        } catch (e: Exception) { RemoteProfile("", "", "", "") }
     }
 
     // 保存远程配置，包含 Token
-    suspend fun saveRemoteConfig(repoRoot: File, url: String, username: String, token: String) = withContext(Dispatchers.IO) {
+    suspend fun saveRemoteConfig(repoRoot: File, profile: RemoteProfile) = withContext(Dispatchers.IO) {
         try {
             Git.open(repoRoot).use { git ->
                 val config = git.repository.config
                 val remoteName = getRemoteName(git)
-                config.setString("remote", remoteName, "url", url)
-                config.setString("gitmobile", "auth", "user", username)
-                config.setString("gitmobile", "auth", "token", token)
+                config.setString("remote", remoteName, "url", profile.url)
+                config.setString("gitmobile", "auth", "user", profile.user)
+                config.setString("gitmobile", "auth", "token", profile.token)
+                config.save()
+            }
+        } catch (e: Exception) { }
+    }
+
+    // 获取仓库级别的本地身份
+    suspend fun getLocalIdentity(repoRoot: File): Pair<String, String> = withContext(Dispatchers.IO) {
+        try {
+            Git.open(repoRoot).use { git ->
+                val config = git.repository.config
+                val name = config.getString("user", null, "name") ?: ""
+                val email = config.getString("user", null, "email") ?: ""
+                name to email
+            }
+        } catch (e: Exception) { "" to "" }
+    }
+
+    // 保存仓库级别的本地身份
+    suspend fun saveLocalIdentity(repoRoot: File, name: String, email: String) = withContext(Dispatchers.IO) {
+        try {
+            Git.open(repoRoot).use { git ->
+                val config = git.repository.config
+                config.setString("user", null, "name", name)
+                config.setString("user", null, "email", email)
                 config.save()
             }
         } catch (e: Exception) { }
@@ -402,7 +428,7 @@ object GitManager {
                 }
 
                 // 3. 全部成功后保存配置
-                saveRemoteConfig(repoRoot, remoteUrl, username, token)
+                saveRemoteConfig(repoRoot, RemoteProfile("Active", remoteUrl, username, token))
 
                 Result.success(Unit)
             }
@@ -437,8 +463,9 @@ object GitManager {
             cloneCommand.call().use { _ ->
                 // 克隆成功后，如果有认证信息，保存认证信息到本地 Git 配置中，并放入远程列表
                 if (!username.isNullOrBlank() && !token.isNullOrBlank()) {
-                    saveRemoteConfig(dir, url, username, token)
-                    saveRemoteProfile(dir, RemoteProfile(name = "Default", url = url, user = username, token = token))
+                    val profile = RemoteProfile(name = "Default", url = url, user = username, token = token)
+                    saveRemoteConfig(dir, profile)
+                    saveRemoteProfile(dir, profile)
                 }
                 Result.success("克隆成功")
             }

@@ -20,6 +20,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             val themeMode by settingsManager.themeModeFlow.collectAsState(initial = ThemeMode.SYSTEM)
             val sortOrder by settingsManager.repoSortOrderFlow.collectAsState(initial = RepoSortOrder.TIME)
+            val globalGitName by settingsManager.globalGitNameFlow.collectAsState(initial = "")
+            val globalGitEmail by settingsManager.globalGitEmailFlow.collectAsState(initial = "")
             val scope = rememberCoroutineScope()
 
             GitMobileTheme(themeMode = themeMode) {
@@ -31,6 +33,11 @@ class MainActivity : ComponentActivity() {
                     sortOrder = sortOrder,
                     onSortOrderChange = { order ->
                         scope.launch { settingsManager.saveRepoSortOrder(order) }
+                    },
+                    globalGitName = globalGitName,
+                    globalGitEmail = globalGitEmail,
+                    onGlobalGitIdentityChange = { name, email ->
+                        scope.launch { settingsManager.saveGlobalGitIdentity(name, email) }
                     }
                 )
             }

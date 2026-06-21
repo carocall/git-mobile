@@ -148,4 +148,14 @@
     <string name="dirty_checkout_title">存在未提交的更改</string>
     <string name="dirty_checkout_msg">你当前有未提交的更改。切换分支可能会导致更改丢失或产生冲突。是否继续？</string>
     <string name="refresh">刷新</string>
+    <string name="global_git_identity">全局 Git 身份</string>
+    <string name="git_identity_not_set">未设置 (将作为提交时的默认值)</string>
+    <string name="git_identity_description">如果仓库未单独配置身份信息，将使用此全局信息进行提交。</string>
+    <string name="author_name">作者姓名</string>
+    <string name="author_email">作者邮箱</string>
+    <string name="auth_login_section">认证信息 (登录)</string>
+    <string name="commit_author_section">提交身份 (作者)</string>
+    <string name="identity_missing_title">身份信息缺失</string>
+    <string name="identity_missing_msg">请在“设置”或“远程配置”中配置 Git 姓名和邮箱，然后再进行提交。</string>
+    <string name="configure_now">立即配置</string>
 </resources>

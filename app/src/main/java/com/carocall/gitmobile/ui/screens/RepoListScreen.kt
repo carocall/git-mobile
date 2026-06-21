@@ -211,6 +211,7 @@ fun RepoListScreen(
                     showCloneDialog = false
                     scope.launch {
                         val progressMonitor = object : org.eclipse.jgit.lib.ProgressMonitor {
+                            // ... progress monitor implementation
                             private var total = 0
                             private var completed = 0
                             private var taskName = ""

@@ -29,11 +29,15 @@ fun SettingsScreen(
     onThemeChange: (ThemeMode) -> Unit,
     currentSortOrder: RepoSortOrder,
     onSortOrderChange: (RepoSortOrder) -> Unit,
+    globalGitName: String,
+    globalGitEmail: String,
+    onGlobalGitIdentityChange: (String, String) -> Unit,
     navController: NavController,
 ) {
     var showLanguageDialog by remember { mutableStateOf(false) }
     var showThemeDialog by remember { mutableStateOf(false) }
     var showSortDialog by remember { mutableStateOf(false) }
+    var showGitIdentityDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -87,7 +91,14 @@ fun SettingsScreen(
                         ThemeMode.DARK -> stringResource(R.string.theme_dark)
                     },
                     icon = Icons.Default.Palette,
-                    onClick = { showThemeDialog = true },
+                    onClick = { showThemeDialog = true }
+                )
+
+                SettingItem(
+                    title = stringResource(R.string.global_git_identity),
+                    subtitle = if (globalGitName.isNotBlank()) "$globalGitName <$globalGitEmail>" else stringResource(R.string.git_identity_not_set),
+                    icon = Icons.Default.Person,
+                    onClick = { showGitIdentityDialog = true },
                     showDivider = false
                 )
             }
@@ -136,7 +147,60 @@ fun SettingsScreen(
                 }
             )
         }
+
+        if (showGitIdentityDialog) {
+            GitIdentityDialog(
+                initialName = globalGitName,
+                initialEmail = globalGitEmail,
+                onDismiss = { showGitIdentityDialog = false },
+                onConfirm = { name, email ->
+                    onGlobalGitIdentityChange(name, email)
+                    showGitIdentityDialog = false
+                }
+            )
+        }
     }
+}
+
+@Composable
+fun GitIdentityDialog(
+    initialName: String,
+    initialEmail: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String, String) -> Unit
+) {
+    var name by remember { mutableStateOf(initialName) }
+    var email by remember { mutableStateOf(initialEmail) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.global_git_identity)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(R.string.git_identity_description), style = MaterialTheme.typography.bodySmall)
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text(stringResource(R.string.author_name)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = { email = it },
+                    label = { Text(stringResource(R.string.author_email)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(name, email) }) { Text(stringResource(R.string.confirm)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+        }
+    )
 }
 
 @Composable

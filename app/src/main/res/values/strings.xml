@@ -148,4 +148,14 @@
     <string name="dirty_checkout_title">Uncommitted Changes</string>
     <string name="dirty_checkout_msg">You have uncommitted changes. Switching branches may cause them to be lost or lead to conflicts. Do you want to proceed?</string>
     <string name="refresh">Refresh</string>
+    <string name="global_git_identity">Global Git Identity</string>
+    <string name="git_identity_not_set">Not set (Used as fallback for commit)</string>
+    <string name="git_identity_description">This identity will be used for commits if a repository-specific identity is not configured.</string>
+    <string name="author_name">Author Name</string>
+    <string name="author_email">Author Email</string>
+    <string name="auth_login_section">Auth (Login)</string>
+    <string name="commit_author_section">Commit Author</string>
+    <string name="identity_missing_title">Identity Missing</string>
+    <string name="identity_missing_msg">Please configure your Git Name and Email in Settings or Remote Configuration before committing.</string>
+    <string name="configure_now">Configure Now</string>
 </resources>

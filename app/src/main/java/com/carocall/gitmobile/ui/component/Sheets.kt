@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -158,7 +159,7 @@ fun RemoteProfileSheet(
     title: String,
     initialProfile: RemoteProfile? = null,
     onDismiss: () -> Unit,
-    onConfirm: (String, String, String, String) -> Unit
+    onConfirm: (RemoteProfile) -> Unit
 ) {
     var name by remember { mutableStateOf(initialProfile?.name ?: "") }
     var url by remember { mutableStateOf(initialProfile?.url ?: "") }
@@ -190,6 +191,10 @@ fun RemoteProfileSheet(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
             )
+            
+            HorizontalDivider()
+            Text(stringResource(R.string.auth_login_section), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+
             OutlinedTextField(
                 value = user,
                 onValueChange = { user = it },
@@ -208,7 +213,7 @@ fun RemoteProfileSheet(
             Button(
                 onClick = {
                     if (name.isNotBlank() && url.isNotBlank()) {
-                        onConfirm(name, url, user, token)
+                        onConfirm(RemoteProfile(name, url, user, token))
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
@@ -272,7 +277,7 @@ fun CommitChangesSheet(
                         DropdownMenuItem(
                             text = { Text("Create Branch...") },
                             onClick = { menuExpanded = false; onAction("BRANCH") },
-                            leadingIcon = { Icon(Icons.Default.CallSplit, null) }
+                            leadingIcon = { Icon(Icons.AutoMirrored.Filled.CallSplit, null) }
                         )
                         HorizontalDivider()
                         Text(
@@ -284,7 +289,7 @@ fun CommitChangesSheet(
                         DropdownMenuItem(
                             text = { Text("Checkout...") },
                             onClick = { menuExpanded = false; onAction("CHECKOUT") },
-                            leadingIcon = { Icon(Icons.Default.Login, null) }
+                            leadingIcon = { Icon(Icons.AutoMirrored.Filled.Login, null) }
                         )
                         DropdownMenuItem(
                             text = { Text("Cherry Pick...") },

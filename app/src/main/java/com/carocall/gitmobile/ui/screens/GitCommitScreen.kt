@@ -42,6 +42,8 @@ import java.util.*
 @Composable
 fun GitCommitScreen(
     repoRoot: File, 
+    globalGitName: String = "",
+    globalGitEmail: String = "",
     onBack: () -> Unit,
     onGoToRemoteConfig: (String) -> Unit = {},
     onGoToBranchManagement: (String) -> Unit = {}
@@ -56,9 +58,10 @@ fun GitCommitScreen(
     var sessionToken by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var loadingStatus by remember { mutableStateOf("") }
-    var remoteConfig by remember { mutableStateOf(Triple("", "", "")) }
+    var remoteConfig by remember { mutableStateOf(com.carocall.gitmobile.data.model.RemoteProfile("", "", "", "")) }
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     var isInitialLoading by remember { mutableStateOf(true) }
+    var localIdentity by remember { mutableStateOf("" to "") }
 
     // 查看提交变更的状态
     var selectedCommit by remember { mutableStateOf<CommitInfo?>(null) }
@@ -70,6 +73,7 @@ fun GitCommitScreen(
     var showDiscardConfirmDialog by remember { mutableStateOf<List<String>?>(null) }
     var showTagInput by remember { mutableStateOf<CommitInfo?>(null) }
     var showBranchInput by remember { mutableStateOf<CommitInfo?>(null) }
+    var showIdentityMissingDialog by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     fun refresh() {
@@ -77,6 +81,7 @@ fun GitCommitScreen(
             status = GitManager.getStatus(repoRoot)
             history = GitManager.getHistory(repoRoot)
             remoteConfig = GitManager.getRemoteConfig(repoRoot)
+            localIdentity = GitManager.getLocalIdentity(repoRoot)
             // 只有当 selectedFiles 为空时才默认全选
             if (selectedFiles.isEmpty() && status.allChanges.isNotEmpty()) {
                 selectedFiles = status.allChanges.map { it.first }.toSet()
@@ -111,7 +116,9 @@ fun GitCommitScreen(
         scope.launch {
             val config = GitManager.getRemoteConfig(repoRoot)
             remoteConfig = config
-            val (url, user, savedToken) = config
+            val url = config.url
+            val user = config.user
+            val savedToken = config.token
             val currentToken = if (sessionToken.isBlank()) savedToken else sessionToken
             
             if (url.isBlank()) {
@@ -260,8 +267,8 @@ fun GitCommitScreen(
                                 )
                             } else {
                                 Text(
-                                    text = if (remoteConfig.first.isNotBlank()) {
-                                        val name = remoteConfig.first.substringAfterLast("/")
+                                    text = if (remoteConfig.url.isNotBlank()) {
+                                        val name = remoteConfig.url.substringAfterLast("/")
                                             .substringBefore(".git")
                                         if (name.isBlank()) "Git Remote" else name
                                     } else stringResource(R.string.no_remote_config),
@@ -270,7 +277,7 @@ fun GitCommitScreen(
                                 )
                             }
                         }
-                        if (!isInitialLoading && remoteConfig.first.isNotBlank()) {
+                        if (!isInitialLoading && remoteConfig.url.isNotBlank()) {
                             Surface(
                                 color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
                                 shape = MaterialTheme.shapes.extraSmall
@@ -333,7 +340,7 @@ fun GitCommitScreen(
                         }
                     }
 
-                    if (!isInitialLoading && remoteConfig.first.isNotBlank()) {
+                    if (!isInitialLoading && remoteConfig.url.isNotBlank()) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -366,7 +373,7 @@ fun GitCommitScreen(
                 }
             }
 
-            TabRow(
+            SecondaryTabRow(
                 selectedTabIndex = selectedTabIndex,
                 containerColor = Color.Transparent,
                 divider = {}
@@ -420,8 +427,15 @@ fun GitCommitScreen(
                         if (commitMessage.isNotBlank()) {
                             IconButton(onClick = {
                                 scope.launch {
-                                    GitManager.commit(repoRoot, commitMessage, selectedFiles.toList())
-                                        .onSuccess { commitMessage = ""; selectedFiles = emptySet(); refresh() }
+                                    val name = localIdentity.first.ifBlank { globalGitName }
+                                    val email = localIdentity.second.ifBlank { globalGitEmail }
+                                    
+                                    if (name.isBlank() || email.isBlank()) {
+                                        showIdentityMissingDialog = true
+                                    } else {
+                                        GitManager.commit(repoRoot, commitMessage, selectedFiles.toList(), name, email)
+                                            .onSuccess { commitMessage = ""; selectedFiles = emptySet(); refresh() }
+                                    }
                                 }
                             }) {
                                 Icon(Icons.Default.Check, stringResource(R.string.confirm), tint = MaterialTheme.colorScheme.primary)
@@ -429,6 +443,25 @@ fun GitCommitScreen(
                         }
                     }
                 )
+
+                // 仓库身份信息 (显示当前谁在提交)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .clickable { showIdentityMissingDialog = true },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Person, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = if (localIdentity.first.isNotBlank()) "${localIdentity.first} <${localIdentity.second}>" 
+                               else if (globalGitName.isNotBlank()) "${globalGitName} <${globalGitEmail}> (Global)"
+                               else stringResource(R.string.no_identity),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
 
                 LazyColumn(Modifier.fillMaxSize()) {
                     if (status.hasConflicts) {
@@ -571,6 +604,51 @@ fun GitCommitScreen(
                     }
                 }
             }
+        }
+
+        if (showIdentityMissingDialog) {
+            var name by remember { mutableStateOf(localIdentity.first.ifBlank { globalGitName }) }
+            var email by remember { mutableStateOf(localIdentity.second.ifBlank { globalGitEmail }) }
+
+            AlertDialog(
+                onDismissRequest = { showIdentityMissingDialog = false },
+                title = { Text(stringResource(R.string.commit_author_section)) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(stringResource(R.string.git_identity_description), style = MaterialTheme.typography.bodySmall)
+                        OutlinedTextField(
+                            value = name,
+                            onValueChange = { name = it },
+                            label = { Text(stringResource(R.string.author_name)) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = email,
+                            onValueChange = { email = it },
+                            label = { Text(stringResource(R.string.author_email)) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { 
+                        scope.launch {
+                            GitManager.saveLocalIdentity(repoRoot, name, email)
+                            refresh()
+                            showIdentityMissingDialog = false
+                        }
+                    }) {
+                        Text(stringResource(R.string.save))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showIdentityMissingDialog = false }) {
+                        Text(stringResource(R.string.cancel))
+                    }
+                }
+            )
         }
 
         if (showChangesDialog) {

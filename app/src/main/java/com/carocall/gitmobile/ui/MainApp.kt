@@ -20,7 +20,10 @@ fun MainApp(
     themeMode: ThemeMode,
     onThemeChange: (ThemeMode) -> Unit,
     sortOrder: RepoSortOrder,
-    onSortOrderChange: (RepoSortOrder) -> Unit
+    onSortOrderChange: (RepoSortOrder) -> Unit,
+    globalGitName: String,
+    globalGitEmail: String,
+    onGlobalGitIdentityChange: (String, String) -> Unit
 ) {
     val navController = rememberNavController()
     NavHost(
@@ -73,6 +76,9 @@ fun MainApp(
                 onThemeChange = onThemeChange,
                 currentSortOrder = sortOrder,
                 onSortOrderChange = onSortOrderChange,
+                globalGitName = globalGitName,
+                globalGitEmail = globalGitEmail,
+                onGlobalGitIdentityChange = onGlobalGitIdentityChange,
                 navController = navController
             )
         }
@@ -99,6 +105,8 @@ fun MainApp(
             val path = URLDecoder.decode(backStackEntry.arguments?.getString("repoPath") ?: "", "UTF-8")
             GitCommitScreen(
                 repoRoot = File(path),
+                globalGitName = globalGitName,
+                globalGitEmail = globalGitEmail,
                 onBack = { navController.popBackStack() },
                 onGoToRemoteConfig = { repoPath ->
                     val encodedPath = URLEncoder.encode(repoPath, "UTF-8")

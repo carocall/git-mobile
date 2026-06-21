@@ -117,33 +117,40 @@ object GitManager {
     suspend fun discardChanges(repoRoot: File, paths: List<String>): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             Git.open(repoRoot).use { git ->
-                val status = git.status().call()
-                val trackedToDiscard = mutableListOf<String>()
-                val untrackedToDelete = mutableListOf<String>()
+                val headExists = git.repository.resolve(Constants.HEAD) != null
 
-                for (path in paths) {
-                    if (status.untracked.contains(path) || status.untrackedFolders.any { path.startsWith(it) }) {
-                        untrackedToDelete.add(path)
-                    } else {
-                        trackedToDiscard.add(path)
+                // 1. 先取消暂存 (Reset)
+                if (headExists) {
+                    val resetCmd = git.reset().setRef(Constants.HEAD)
+                    paths.forEach { resetCmd.addPath(it) }
+                    resetCmd.call()
+                } else {
+                    // 初始仓库，通过 rm --cached 取消暂存
+                    val statusBefore = git.status().call()
+                    val staged = paths.filter { !statusBefore.untracked.contains(it) && !statusBefore.untrackedFolders.any { f -> it.startsWith(f) } }
+                    if (staged.isNotEmpty()) {
+                        val rmCmd = git.rm().setCached(true)
+                        staged.forEach { rmCmd.addFilepattern(it) }
+                        try { rmCmd.call() } catch (e: Exception) { }
                     }
                 }
 
-                // 1. 对于已追踪的文件：使用 Checkout 命令恢复
-                if (trackedToDiscard.isNotEmpty()) {
-                    val checkoutCmd = git.checkout()
-                    trackedToDiscard.forEach { checkoutCmd.addPath(it) }
-                    checkoutCmd.call()
+                // 2. 获取最新状态，决定如何处理工作区
+                val s = git.status().call()
+                
+                for (path in paths) {
+                    if (s.untracked.contains(path) || s.untrackedFolders.any { path.startsWith(it) }) {
+                        // 未追踪的文件（包括刚取消暂存的新文件）：直接删除
+                        val file = File(repoRoot, path)
+                        if (file.exists()) {
+                            if (file.isDirectory) file.deleteRecursively() else file.delete()
+                        }
+                    } else {
+                        // 已追踪的文件：通过 checkout 恢复工作区
+                        git.checkout().addPath(path).call()
+                    }
                 }
-
-                // 2. 对于未追踪的文件：使用 Clean 命令清理
-                if (untrackedToDelete.isNotEmpty()) {
-                    git.clean()
-                        .setPaths(untrackedToDelete.toSet())
-                        .setCleanDirectories(true)
-                        .setIgnore(false)
-                        .call()
-                }
+                
                 Result.success(Unit)
             }
         } catch (e: Exception) { Result.failure(e) }
@@ -159,7 +166,7 @@ object GitManager {
                 RepoStatus(
                     branch = repository.branch,
                     untracked = s.untracked,
-                    modified = s.modified,
+                    modified = s.modified + s.changed,
                     added = s.added,
                     removed = s.removed + s.missing,
                     isMerging = state == RepositoryState.MERGING,

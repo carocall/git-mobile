@@ -6,6 +6,7 @@ import androidx.compose.runtime.Composable
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.carocall.gitmobile.data.model.GitAccount
 import com.carocall.gitmobile.ui.screens.*
 import com.carocall.gitmobile.ui.theme.ThemeMode
 
@@ -23,7 +24,10 @@ fun MainApp(
     onSortOrderChange: (RepoSortOrder) -> Unit,
     globalGitName: String,
     globalGitEmail: String,
-    onGlobalGitIdentityChange: (String, String) -> Unit
+    onGlobalGitIdentityChange: (String, String) -> Unit,
+    gitAccounts: List<GitAccount>,
+    onSaveGitAccount: (GitAccount) -> Unit,
+    onDeleteGitAccount: (String) -> Unit
 ) {
     val navController = rememberNavController()
     NavHost(
@@ -61,6 +65,7 @@ fun MainApp(
         composable("repo_list") {
             RepoListScreen(
                 sortOrder = sortOrder,
+                gitAccounts = gitAccounts,
                 onOpenRepo = { repo ->
                     val encodedPath = URLEncoder.encode(repo.absolutePath, "UTF-8")
                     navController.navigate("repo_explorer/$encodedPath")
@@ -79,7 +84,16 @@ fun MainApp(
                 globalGitName = globalGitName,
                 globalGitEmail = globalGitEmail,
                 onGlobalGitIdentityChange = onGlobalGitIdentityChange,
+                gitAccounts = gitAccounts,
                 navController = navController
+            )
+        }
+        composable("git_accounts") {
+            GitAccountsScreen(
+                accounts = gitAccounts,
+                onSaveAccount = onSaveGitAccount,
+                onDeleteAccount = onDeleteGitAccount,
+                onBack = { navController.popBackStack() }
             )
         }
         composable("repo_explorer/{repoRootPath}") { backStackEntry ->
@@ -107,6 +121,7 @@ fun MainApp(
                 repoRoot = File(path),
                 globalGitName = globalGitName,
                 globalGitEmail = globalGitEmail,
+                gitAccounts = gitAccounts,
                 onBack = { navController.popBackStack() },
                 onGoToRemoteConfig = { repoPath ->
                     val encodedPath = URLEncoder.encode(repoPath, "UTF-8")
@@ -120,11 +135,19 @@ fun MainApp(
         }
         composable("remote_config/{repoPath}") { backStackEntry ->
             val path = URLDecoder.decode(backStackEntry.arguments?.getString("repoPath") ?: "", "UTF-8")
-            RemoteConfigScreen(repoRoot = File(path), onBack = { navController.popBackStack() })
+            RemoteConfigScreen(
+                repoRoot = File(path),
+                gitAccounts = gitAccounts,
+                onBack = { navController.popBackStack() }
+            )
         }
         composable("branch_management/{repoPath}") { backStackEntry ->
             val path = URLDecoder.decode(backStackEntry.arguments?.getString("repoPath") ?: "", "UTF-8")
-            BranchManagementScreen(repoRoot = File(path), onBack = { navController.popBackStack() })
+            BranchManagementScreen(
+                repoRoot = File(path),
+                gitAccounts = gitAccounts,
+                onBack = { navController.popBackStack() }
+            )
         }
     }
 }

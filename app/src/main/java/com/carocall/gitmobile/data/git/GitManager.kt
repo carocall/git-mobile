@@ -225,29 +225,26 @@ object GitManager {
         }
     }
 
-    // 获取保存的远程地址、用户名和 Token
     suspend fun getRemoteConfig(repoRoot: File): RemoteProfile = withContext(Dispatchers.IO) {
         try {
             Git.open(repoRoot).use { git ->
                 val config = git.repository.config
                 val remoteName = getRemoteName(git)
                 val url = config.getString("remote", remoteName, "url") ?: ""
-                val user = config.getString("gitmobile", "auth", "user") ?: ""
-                val token = config.getString("gitmobile", "auth", "token") ?: ""
-                RemoteProfile("Active", url, user, token)
+                val accountId = config.getString("gitmobile", "auth", "accountId")
+                RemoteProfile("Active", url, accountId)
             }
-        } catch (e: Exception) { RemoteProfile("", "", "", "") }
+        } catch (e: Exception) { RemoteProfile("", "", null) }
     }
 
-    // 保存远程配置，包含 Token
+    // 保存远程配置
     suspend fun saveRemoteConfig(repoRoot: File, profile: RemoteProfile) = withContext(Dispatchers.IO) {
         try {
             Git.open(repoRoot).use { git ->
                 val config = git.repository.config
                 val remoteName = getRemoteName(git)
                 config.setString("remote", remoteName, "url", profile.url)
-                config.setString("gitmobile", "auth", "user", profile.user)
-                config.setString("gitmobile", "auth", "token", profile.token)
+                config.setString("gitmobile", "auth", "accountId", profile.accountId)
                 config.save()
             }
         } catch (e: Exception) { }
@@ -286,8 +283,7 @@ object GitManager {
                     RemoteProfile(
                         name = name,
                         url = config.getString("gitmobile-profile", name, "url") ?: "",
-                        user = config.getString("gitmobile-profile", name, "user") ?: "",
-                        token = config.getString("gitmobile-profile", name, "token") ?: ""
+                        accountId = config.getString("gitmobile-profile", name, "accountId")
                     )
                 }
             }
@@ -299,8 +295,7 @@ object GitManager {
             Git.open(repoRoot).use { git ->
                 val config = git.repository.config
                 config.setString("gitmobile-profile", profile.name, "url", profile.url)
-                config.setString("gitmobile-profile", profile.name, "user", profile.user)
-                config.setString("gitmobile-profile", profile.name, "token", profile.token)
+                config.setString("gitmobile-profile", profile.name, "accountId", profile.accountId)
                 config.save()
             }
         } catch (e: Exception) { }
@@ -383,7 +378,6 @@ object GitManager {
 
     suspend fun sync(
         repoRoot: File,
-        remoteUrl: String,
         username: String,
         token: String,
         pullFailedMsg: String,
@@ -391,7 +385,7 @@ object GitManager {
         progressMonitor: org.eclipse.jgit.lib.ProgressMonitor? = null
     ): Result<Unit> = withContext(Dispatchers.IO) {
         if (username.isBlank() || token.isBlank()) {
-            return@withContext Result.failure(Exception("AUTH_MISSING"))
+            return@withContext Result.failure(Exception("AUTH_REQUIRED"))
         }
         try {
             Git.open(repoRoot).use { git ->
@@ -427,9 +421,6 @@ object GitManager {
                     }
                 }
 
-                // 3. 全部成功后保存配置
-                saveRemoteConfig(repoRoot, RemoteProfile("Active", remoteUrl, username, token))
-
                 Result.success(Unit)
             }
         } catch (e: Exception) {
@@ -442,6 +433,7 @@ object GitManager {
         url: String,
         username: String? = null,
         token: String? = null,
+        accountId: String? = null,
         branch: String? = null,
         progressMonitor: org.eclipse.jgit.lib.ProgressMonitor? = null
     ): Result<String> = withContext(Dispatchers.IO) {
@@ -461,12 +453,10 @@ object GitManager {
             }
 
             cloneCommand.call().use { _ ->
-                // 克隆成功后，如果有认证信息，保存认证信息到本地 Git 配置中，并放入远程列表
-                if (!username.isNullOrBlank() && !token.isNullOrBlank()) {
-                    val profile = RemoteProfile(name = "Default", url = url, user = username, token = token)
-                    saveRemoteConfig(dir, profile)
-                    saveRemoteProfile(dir, profile)
-                }
+                // 克隆成功后，保存远程配置
+                val profile = RemoteProfile(name = "origin", url = url, accountId = accountId)
+                saveRemoteConfig(dir, profile)
+                saveRemoteProfile(dir, profile)
                 Result.success("克隆成功")
             }
         } catch (e: Exception) {

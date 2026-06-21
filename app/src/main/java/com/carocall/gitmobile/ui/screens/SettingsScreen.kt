@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.os.LocaleListCompat
 import androidx.navigation.NavController
 import com.carocall.gitmobile.R
+import com.carocall.gitmobile.data.model.GitAccount
 import com.carocall.gitmobile.ui.theme.ThemeMode
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -32,6 +33,7 @@ fun SettingsScreen(
     globalGitName: String,
     globalGitEmail: String,
     onGlobalGitIdentityChange: (String, String) -> Unit,
+    gitAccounts: List<GitAccount>,
     navController: NavController,
 ) {
     var showLanguageDialog by remember { mutableStateOf(false) }
@@ -91,14 +93,24 @@ fun SettingsScreen(
                         ThemeMode.DARK -> stringResource(R.string.theme_dark)
                     },
                     icon = Icons.Default.Palette,
-                    onClick = { showThemeDialog = true }
+                    onClick = { showThemeDialog = true },
+                    showDivider = false
                 )
+            }
 
+            SettingGroup(title = stringResource(R.string.identity_section)) {
                 SettingItem(
                     title = stringResource(R.string.global_git_identity),
                     subtitle = if (globalGitName.isNotBlank()) "$globalGitName <$globalGitEmail>" else stringResource(R.string.git_identity_not_set),
                     icon = Icons.Default.Person,
-                    onClick = { showGitIdentityDialog = true },
+                    onClick = { showGitIdentityDialog = true }
+                )
+
+                SettingItem(
+                    title = stringResource(R.string.git_accounts_title),
+                    subtitle = stringResource(R.string.git_accounts_subtitle, gitAccounts.size),
+                    icon = Icons.Default.Key,
+                    onClick = { navController.navigate("git_accounts") },
                     showDivider = false
                 )
             }
@@ -160,6 +172,59 @@ fun SettingsScreen(
             )
         }
     }
+}
+
+@Composable
+fun GitAccountEditDialog(
+    initialAccount: GitAccount,
+    onDismiss: () -> Unit,
+    onConfirm: (GitAccount) -> Unit
+) {
+    var name by remember { mutableStateOf(initialAccount.name) }
+    var username by remember { mutableStateOf(initialAccount.username) }
+    var token by remember { mutableStateOf(initialAccount.token) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (initialAccount.name.isEmpty()) stringResource(R.string.add_account) else stringResource(R.string.edit_account)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text(stringResource(R.string.account_name_label)) },
+                    placeholder = { Text("e.g. GitHub - Personal") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = username,
+                    onValueChange = { username = it },
+                    label = { Text(stringResource(R.string.username)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = token,
+                    onValueChange = { token = it },
+                    label = { Text(stringResource(R.string.token_or_password)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(initialAccount.copy(name = name, username = username, token = token)) },
+                enabled = name.isNotBlank() && username.isNotBlank() && token.isNotBlank()
+            ) {
+                Text(stringResource(R.string.confirm))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+        }
+    )
 }
 
 @Composable

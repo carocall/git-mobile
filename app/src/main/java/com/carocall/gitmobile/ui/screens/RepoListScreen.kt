@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
 import com.carocall.gitmobile.R
 import com.carocall.gitmobile.data.git.GitManager
+import com.carocall.gitmobile.data.model.GitAccount
 import com.carocall.gitmobile.ui.component.CloneSheet
 import com.carocall.gitmobile.ui.component.ErrorDialog
 import com.carocall.gitmobile.ui.component.InputSheet
@@ -43,6 +44,7 @@ enum class RepoSortOrder { NAME, TIME }
 @Composable
 fun RepoListScreen(
     sortOrder: RepoSortOrder,
+    gitAccounts: List<GitAccount>,
     onOpenRepo: (File) -> Unit,
     onOpenSettings: () -> Unit
 ) {
@@ -203,57 +205,67 @@ fun RepoListScreen(
         }
 
         if (showCloneDialog) {
-            CloneSheet(onDismiss = { showCloneDialog = false }, onConfirm = { url, name, branch, user, token ->
-                val f = File(rootDir, name)
-                if (f.exists()) {
-                    Toast.makeText(context, context.getString(R.string.dir_already_exists), Toast.LENGTH_SHORT).show()
-                } else {
-                    showCloneDialog = false
-                    scope.launch {
-                        val progressMonitor = object : org.eclipse.jgit.lib.ProgressMonitor {
-                            // ... progress monitor implementation
-                            private var total = 0
-                            private var completed = 0
-                            private var taskName = ""
+            CloneSheet(
+                accounts = gitAccounts,
+                onDismiss = { showCloneDialog = false },
+                onConfirm = { url, name, branch, accountId ->
+                    val f = File(rootDir, name)
+                    if (f.exists()) {
+                        Toast.makeText(context, context.getString(R.string.dir_already_exists), Toast.LENGTH_SHORT).show()
+                    } else {
+                        showCloneDialog = false
+                        scope.launch {
+                            val account = gitAccounts.find { it.id == accountId }
+                            val user = account?.username
+                            val token = account?.token
 
-                            override fun start(totalTasks: Int) {}
-                            override fun beginTask(title: String, totalWork: Int) {
-                                taskName = title
-                                total = totalWork
-                                completed = 0
-                                cloningProgress = taskName to 0f
-                            }
-                            override fun update(completedUnits: Int) {
-                                completed += completedUnits
-                                if (total > 0) {
-                                    cloningProgress = taskName to (completed.toFloat() / total)
-                                } else {
+                            val progressMonitor = object : org.eclipse.jgit.lib.ProgressMonitor {
+                                // ... progress monitor implementation
+                                private var total = 0
+                                private var completed = 0
+                                private var taskName = ""
+
+                                override fun start(totalTasks: Int) {}
+                                override fun beginTask(title: String, totalWork: Int) {
+                                    taskName = title
+                                    total = totalWork
+                                    completed = 0
                                     cloningProgress = taskName to 0f
                                 }
+                                override fun update(completedUnits: Int) {
+                                    completed += completedUnits
+                                    if (total > 0) {
+                                        cloningProgress = taskName to (completed.toFloat() / total)
+                                    } else {
+                                        cloningProgress = taskName to 0f
+                                    }
+                                }
+                                override fun endTask() {}
+                                override fun isCancelled(): Boolean = false
+                                override fun showDuration(enabled: Boolean) {}
                             }
-                            override fun endTask() {}
-                            override fun isCancelled(): Boolean = false
-                            override fun showDuration(enabled: Boolean) {}
-                        }
 
-                        val result = GitManager.clone(
-                            f, url,
-                            user.ifBlank { null },
-                            token.ifBlank { null },
-                            branch.ifBlank { null },
-                            progressMonitor
-                        )
-                        
-                        cloningProgress = null
-                        if (result.isSuccess) {
-                            Toast.makeText(context, context.getString(R.string.clone_success), Toast.LENGTH_SHORT).show()
-                            refreshRepos()
-                        } else {
-                            errorMessage = context.getString(R.string.clone_failed, result.exceptionOrNull()?.message)
+                            val result = GitManager.clone(
+                                dir = f,
+                                url = url,
+                                username = user,
+                                token = token,
+                                accountId = accountId,
+                                branch = branch.ifBlank { null },
+                                progressMonitor = progressMonitor
+                            )
+                            
+                            cloningProgress = null
+                            if (result.isSuccess) {
+                                Toast.makeText(context, context.getString(R.string.clone_success), Toast.LENGTH_SHORT).show()
+                                refreshRepos()
+                            } else {
+                                errorMessage = context.getString(R.string.clone_failed, result.exceptionOrNull()?.message)
+                            }
                         }
                     }
                 }
-            })
+            )
         }
 
         if (cloningProgress != null) {

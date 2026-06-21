@@ -158,4 +158,14 @@
     <string name="identity_missing_title">Identity Missing</string>
     <string name="identity_missing_msg">Please configure your Git Name and Email in Settings or Remote Configuration before committing.</string>
     <string name="configure_now">Configure Now</string>
+    <string name="identity_section">Identity</string>
+    <string name="git_accounts_title">Git Accounts</string>
+    <string name="git_accounts_subtitle">%d accounts managed</string>
+    <string name="no_git_accounts">No global accounts saved</string>
+    <string name="add_account">Add Account</string>
+    <string name="edit_account">Edit Account</string>
+    <string name="account_name_label">Account Alias</string>
+    <string name="token_or_password">Token / Password</string>
+    <string name="use_global_account">Use Global Account</string>
+    <string name="select_git_account">Select Account</string>
 </resources>

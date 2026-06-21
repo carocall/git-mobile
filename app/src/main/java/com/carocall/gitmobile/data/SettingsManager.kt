@@ -9,10 +9,13 @@ import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.carocall.gitmobile.data.model.GitAccount
 import com.carocall.gitmobile.ui.screens.RepoSortOrder
 import com.carocall.gitmobile.ui.theme.ThemeMode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import org.json.JSONArray
+import org.json.JSONObject
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
@@ -26,6 +29,7 @@ class SettingsManager(private val context: Context) {
         private val NOVEL_BG_COLOR_KEY = intPreferencesKey("novel_bg_color")
         private val GLOBAL_GIT_NAME_KEY = stringPreferencesKey("global_git_name")
         private val GLOBAL_GIT_EMAIL_KEY = stringPreferencesKey("global_git_email")
+        private val GIT_ACCOUNTS_KEY = stringPreferencesKey("git_accounts")
     }
 
     val themeModeFlow: Flow<ThemeMode> = context.dataStore.data
@@ -54,6 +58,12 @@ class SettingsManager(private val context: Context) {
 
     val globalGitEmailFlow: Flow<String> = context.dataStore.data
         .map { it[GLOBAL_GIT_EMAIL_KEY] ?: "" }
+
+    val gitAccountsFlow: Flow<List<GitAccount>> = context.dataStore.data
+        .map { preferences ->
+            val json = preferences[GIT_ACCOUNTS_KEY] ?: "[]"
+            parseGitAccounts(json)
+        }
 
     suspend fun saveThemeMode(themeMode: ThemeMode) {
         context.dataStore.edit { preferences ->
@@ -84,5 +94,57 @@ class SettingsManager(private val context: Context) {
             preferences[GLOBAL_GIT_NAME_KEY] = name
             preferences[GLOBAL_GIT_EMAIL_KEY] = email
         }
+    }
+
+    suspend fun saveGitAccount(account: GitAccount) {
+        context.dataStore.edit { preferences ->
+            val accounts = parseGitAccounts(preferences[GIT_ACCOUNTS_KEY] ?: "[]").toMutableList()
+            val index = accounts.indexOfFirst { it.id == account.id }
+            if (index != -1) {
+                accounts[index] = account
+            } else {
+                accounts.add(account)
+            }
+            preferences[GIT_ACCOUNTS_KEY] = serializeGitAccounts(accounts)
+        }
+    }
+
+    suspend fun deleteGitAccount(accountId: String) {
+        context.dataStore.edit { preferences ->
+            val accounts = parseGitAccounts(preferences[GIT_ACCOUNTS_KEY] ?: "[]").filter { it.id != accountId }
+            preferences[GIT_ACCOUNTS_KEY] = serializeGitAccounts(accounts)
+        }
+    }
+
+    private fun parseGitAccounts(json: String): List<GitAccount> {
+        return try {
+            val list = mutableListOf<GitAccount>()
+            val array = JSONArray(json)
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                list.add(GitAccount(
+                    id = obj.getString("id"),
+                    name = obj.getString("name"),
+                    username = obj.getString("username"),
+                    token = obj.getString("token")
+                ))
+            }
+            list
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    private fun serializeGitAccounts(accounts: List<GitAccount>): String {
+        val array = JSONArray()
+        accounts.forEach { account ->
+            val obj = JSONObject()
+            obj.put("id", account.id)
+            obj.put("name", account.name)
+            obj.put("username", account.username)
+            obj.put("token", account.token)
+            array.put(obj)
+        }
+        return array.toString()
     }
 }

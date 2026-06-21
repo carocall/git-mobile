@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.*
@@ -22,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.carocall.gitmobile.R
 import com.carocall.gitmobile.data.model.CommitInfo
+import com.carocall.gitmobile.data.model.GitAccount
 import com.carocall.gitmobile.data.model.RemoteProfile
 import java.io.File
 import java.text.SimpleDateFormat
@@ -36,28 +39,26 @@ fun InputSheet(
     onConfirm: (String) -> Unit
 ) {
     var value by remember { mutableStateOf(initialValue) }
-
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp)
-                .padding(bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(16.dp)
+                .padding(bottom = 32.dp)
         ) {
             Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            
+            Spacer(Modifier.height(16.dp))
             OutlinedTextField(
                 value = value,
                 onValueChange = { value = it },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-            
-            Button(
-                onClick = { if (value.isNotBlank()) onConfirm(value) },
                 modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.medium
+                singleLine = true
+            )
+            Spacer(Modifier.height(16.dp))
+            Button(
+                onClick = { onConfirm(value) },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = value.isNotBlank()
             ) {
                 Text(stringResource(R.string.confirm))
             }
@@ -68,14 +69,17 @@ fun InputSheet(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CloneSheet(
+    accounts: List<GitAccount> = emptyList(),
     onDismiss: () -> Unit,
-    onConfirm: (String, String, String, String, String) -> Unit
+    onConfirm: (url: String, name: String, branch: String, accountId: String) -> Unit
 ) {
     var url by remember { mutableStateOf("") }
     var name by remember { mutableStateOf("") }
     var branch by remember { mutableStateOf("") }
-    var user by remember { mutableStateOf("") }
-    var token by remember { mutableStateOf("") }
+    var selectedAccountId by remember { mutableStateOf<String?>(null) }
+    var showAccountSelector by remember { mutableStateOf(false) }
+
+    val selectedAccount = accounts.find { it.id == selectedAccountId }
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
@@ -122,35 +126,102 @@ fun CloneSheet(
                 singleLine = true
             )
             
-            OutlinedTextField(
-                value = user,
-                onValueChange = { user = it },
-                label = { Text(stringResource(R.string.username)) },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
+            HorizontalDivider()
             
-            OutlinedTextField(
-                value = token,
-                onValueChange = { token = it },
-                label = { Text(stringResource(R.string.token_password)) },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
+            OutlinedCard(
+                onClick = { showAccountSelector = true },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.AccountCircle, null)
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            text = selectedAccount?.name ?: stringResource(R.string.select_git_account),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = if (selectedAccount == null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+                        )
+                        if (selectedAccount != null) {
+                            Text(selectedAccount.username, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                    Icon(Icons.Default.ArrowDropDown, null)
+                }
+            }
             
             Button(
                 onClick = {
-                    if (url.isNotBlank() && name.isNotBlank()) {
-                        onConfirm(url, name, branch, user, token)
+                    if (url.isNotBlank() && name.isNotBlank() && selectedAccount != null) {
+                        onConfirm(url, name, branch, selectedAccount.id)
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.medium
+                shape = MaterialTheme.shapes.medium,
+                enabled = url.isNotBlank() && name.isNotBlank() && selectedAccount != null
             ) {
                 Text(stringResource(R.string.start_clone))
             }
         }
     }
+
+    if (showAccountSelector) {
+        AccountSelectionDialog(
+            accounts = accounts,
+            currentAccountId = selectedAccountId,
+            onDismiss = { showAccountSelector = false },
+            onSelect = {
+                selectedAccountId = it?.id
+                showAccountSelector = false
+            }
+        )
+    }
+}
+
+@Composable
+fun AccountSelectionDialog(
+    accounts: List<GitAccount>,
+    currentAccountId: String?,
+    onDismiss: () -> Unit,
+    onSelect: (GitAccount?) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.select_git_account)) },
+        text = {
+            Column(Modifier.selectableGroup().verticalScroll(rememberScrollState())) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .selectable(selected = currentAccountId == null, onClick = { onSelect(null) })
+                        .padding(vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    RadioButton(selected = currentAccountId == null, onClick = null)
+                    Text(stringResource(R.string.no_identity), Modifier.padding(start = 16.dp))
+                }
+                accounts.forEach { account ->
+                    val isSelected = account.id == currentAccountId
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .selectable(selected = isSelected, onClick = { onSelect(account) })
+                            .padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(selected = isSelected, onClick = null)
+                        Column(Modifier.padding(start = 16.dp)) {
+                            Text(account.name)
+                            Text(account.username, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {}
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -158,13 +229,16 @@ fun CloneSheet(
 fun RemoteProfileSheet(
     title: String,
     initialProfile: RemoteProfile? = null,
+    accounts: List<GitAccount> = emptyList(),
     onDismiss: () -> Unit,
     onConfirm: (RemoteProfile) -> Unit
 ) {
     var name by remember { mutableStateOf(initialProfile?.name ?: "") }
     var url by remember { mutableStateOf(initialProfile?.url ?: "") }
-    var user by remember { mutableStateOf(initialProfile?.user ?: "") }
-    var token by remember { mutableStateOf(initialProfile?.token ?: "") }
+    var selectedAccountId by remember { mutableStateOf(initialProfile?.accountId) }
+    var showAccountSelector by remember { mutableStateOf(false) }
+
+    val selectedAccount = accounts.find { it.id == selectedAccountId }
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
@@ -193,35 +267,56 @@ fun RemoteProfileSheet(
             )
             
             HorizontalDivider()
-            Text(stringResource(R.string.auth_login_section), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+            Text(stringResource(R.string.select_git_account), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
 
-            OutlinedTextField(
-                value = user,
-                onValueChange = { user = it },
-                label = { Text(stringResource(R.string.user_optional)) },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
-            OutlinedTextField(
-                value = token,
-                onValueChange = { token = it },
-                label = { Text(stringResource(R.string.token_optional)) },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
+            OutlinedCard(
+                onClick = { showAccountSelector = true },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.AccountCircle, null)
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            text = selectedAccount?.name ?: stringResource(R.string.select_git_account),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = if (selectedAccount == null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+                        )
+                        if (selectedAccount != null) {
+                            Text(selectedAccount.username, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                    Icon(Icons.Default.ArrowDropDown, null)
+                }
+            }
             
             Button(
                 onClick = {
-                    if (name.isNotBlank() && url.isNotBlank()) {
-                        onConfirm(RemoteProfile(name, url, user, token))
+                    if (name.isNotBlank() && url.isNotBlank() && selectedAccountId != null) {
+                        onConfirm(RemoteProfile(name, url, selectedAccountId))
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = name.isNotBlank() && url.isNotBlank()
+                enabled = name.isNotBlank() && url.isNotBlank() && selectedAccountId != null
             ) {
                 Text(stringResource(R.string.ok))
             }
         }
+    }
+
+    if (showAccountSelector) {
+        AccountSelectionDialog(
+            accounts = accounts,
+            currentAccountId = selectedAccountId,
+            onDismiss = { showAccountSelector = false },
+            onSelect = {
+                selectedAccountId = it?.id
+                showAccountSelector = false
+            }
+        )
     }
 }
 
@@ -232,105 +327,59 @@ fun CommitChangesSheet(
     changes: List<Pair<String, String>>,
     onDismiss: () -> Unit,
     onFileClick: (String) -> Unit,
-    onAction: (String) -> Unit // TAG, BRANCH, CHECKOUT, CHERRY_PICK, REVERT, DROP
+    onAction: (String) -> Unit
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .padding(horizontal = 16.dp)
                 .padding(bottom = 32.dp)
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    stringResource(R.string.commit_changes_title, commit?.message?.take(20) ?: ""),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1f)
-                )
-                
-                var menuExpanded by remember { mutableStateOf(false) }
-                Box {
-                    IconButton(onClick = { menuExpanded = true }) {
-                        Icon(Icons.Default.MoreVert, contentDescription = "Actions")
-                    }
-                    DropdownMenu(
-                        expanded = menuExpanded,
-                        onDismissRequest = { menuExpanded = false }
-                    ) {
-                        Text(
-                            "Tagging & Branching",
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Add Tag...") },
-                            onClick = { menuExpanded = false; onAction("TAG") },
-                            leadingIcon = { Icon(Icons.Default.Tag, null) }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Create Branch...") },
-                            onClick = { menuExpanded = false; onAction("BRANCH") },
-                            leadingIcon = { Icon(Icons.AutoMirrored.Filled.CallSplit, null) }
-                        )
-                        HorizontalDivider()
-                        Text(
-                            "Checkout & Apply",
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Checkout...") },
-                            onClick = { menuExpanded = false; onAction("CHECKOUT") },
-                            leadingIcon = { Icon(Icons.AutoMirrored.Filled.Login, null) }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Cherry Pick...") },
-                            onClick = { menuExpanded = false; onAction("CHERRY_PICK") },
-                            leadingIcon = { Icon(Icons.Default.ContentPaste, null) }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Revert...") },
-                            onClick = { menuExpanded = false; onAction("REVERT") },
-                            leadingIcon = { Icon(Icons.Default.SettingsBackupRestore, null) }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Drop...", color = MaterialTheme.colorScheme.error) },
-                            onClick = { menuExpanded = false; onAction("DROP") },
-                            leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) }
-                        )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(R.string.change_details, commit?.id?.take(7) ?: ""), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    commit?.let {
+                        Text("${it.author} • ${SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(it.time))}", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
                     }
                 }
+                IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, null) }
             }
             
-            LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
+            Spacer(Modifier.height(8.dp))
+            Text(commit?.message ?: "", style = MaterialTheme.typography.bodyMedium)
+            Spacer(Modifier.height(16.dp))
+
+            // Action Buttons
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                AssistChip(onClick = { onAction("CHECKOUT") }, label = { Text("Checkout") }, leadingIcon = { Icon(Icons.Default.Sync, null, Modifier.size(18.dp)) })
+                AssistChip(onClick = { onAction("CHERRY_PICK") }, label = { Text("Cherry-pick") }, leadingIcon = { Icon(Icons.Default.ContentPaste, null, Modifier.size(18.dp)) })
+                AssistChip(onClick = { onAction("REVERT") }, label = { Text("Revert") }, leadingIcon = { Icon(Icons.AutoMirrored.Filled.Undo, null, Modifier.size(18.dp)) })
+                AssistChip(onClick = { onAction("TAG") }, label = { Text("Tag") }, leadingIcon = { Icon(Icons.AutoMirrored.Filled.Label, null, Modifier.size(18.dp)) })
+                AssistChip(onClick = { onAction("BRANCH") }, label = { Text("Branch") }, leadingIcon = { Icon(Icons.Default.AccountTree, null, Modifier.size(18.dp)) })
+            }
+
+            Spacer(Modifier.height(16.dp))
+            Text("Files Changed (${changes.size})", style = MaterialTheme.typography.labelMedium, color = Color.Gray)
+            
+            LazyColumn(modifier = Modifier.weight(1f, fill = false).heightIn(max = 300.dp)) {
                 items(changes) { (path, type) ->
                     ListItem(
                         headlineContent = { Text(path, fontSize = 14.sp) },
-                        trailingContent = { 
-                            Text(
-                                type.take(1), 
-                                fontWeight = FontWeight.Bold, 
-                                color = if(type == "ADD") Color(0xFF4CAF50) else Color(0xFFE91E63)
-                            ) 
+                        supportingContent = { 
+                            val color = when (type) {
+                                "ADD" -> Color(0xFF4CAF50)
+                                "DELETE" -> Color(0xFFE91E63)
+                                else -> Color(0xFF2196F3)
+                            }
+                            Text(type, color = color, fontSize = 11.sp) 
                         },
                         modifier = Modifier.clickable { onFileClick(path) }
                     )
                 }
-            }
-            
-            TextButton(
-                onClick = onDismiss,
-                modifier = Modifier.align(Alignment.End).padding(end = 16.dp)
-            ) {
-                Text(stringResource(R.string.close))
             }
         }
     }
@@ -343,54 +392,32 @@ fun DiffSheet(
     diffContent: String,
     onDismiss: () -> Unit
 ) {
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    ) {
+    ModalBottomSheet(onDismissRequest = onDismiss, modifier = Modifier.fillMaxHeight(0.9f)) {
         Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 32.dp)
+                .fillMaxSize()
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 16.dp)
         ) {
-            Text(
-                stringResource(R.string.change_details, fileName),
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)
-            )
-            
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 500.dp)
-                    .padding(horizontal = 16.dp)
-                    .verticalScroll(rememberScrollState())
-                    .horizontalScroll(rememberScrollState())
-            ) {
-                Column {
-                    diffContent.lines().forEach { line ->
-                        val color = when {
-                            line.startsWith("+") && !line.startsWith("+++") -> Color(0xFF4CAF50)
-                            line.startsWith("-") && !line.startsWith("---") -> Color(0xFFE91E63)
-                            line.startsWith("@@") -> Color(0xFF2196F3)
-                            else -> MaterialTheme.colorScheme.onSurface
-                        }
-                        Text(
-                            line,
-                            color = color,
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 12.sp,
-                            modifier = Modifier.padding(horizontal = 4.dp)
-                        )
-                    }
-                }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(fileName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, null) }
             }
-            
-            TextButton(
-                onClick = onDismiss,
-                modifier = Modifier.align(Alignment.End).padding(end = 16.dp)
+            Spacer(Modifier.height(16.dp))
+            Surface(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                shape = MaterialTheme.shapes.medium
             ) {
-                Text(stringResource(R.string.close))
+                Box(Modifier.verticalScroll(rememberScrollState()).horizontalScroll(rememberScrollState())) {
+                    Text(
+                        text = diffContent,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(12.dp),
+                        softWrap = false
+                    )
+                }
             }
         }
     }
@@ -402,8 +429,6 @@ fun FileDetailsSheet(
     file: File,
     onDismiss: () -> Unit
 ) {
-    val dateFormat = remember { SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()) }
-    
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
@@ -412,18 +437,11 @@ fun FileDetailsSheet(
                 .padding(bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text(
-                stringResource(R.string.file_info),
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
+            Text(stringResource(R.string.file_info), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                DetailItem(stringResource(R.string.rename), file.name)
-                DetailItem(stringResource(R.string.path_label, "").substringBefore(":"), file.absolutePath)
-                DetailItem(stringResource(R.string.size_label, "").substringBefore(":"), formatFileSize(file.length()))
-                DetailItem(stringResource(R.string.last_modified_label, "").substringBefore(":"), dateFormat.format(Date(file.lastModified())))
-            }
+            DetailItem(stringResource(R.string.path_label, ""), file.absolutePath)
+            DetailItem(stringResource(R.string.size_label, ""), formatFileSize(file.length()))
+            DetailItem(stringResource(R.string.last_modified_label, ""), SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(file.lastModified())))
             
             Button(
                 onClick = onDismiss,
@@ -447,5 +465,5 @@ fun formatFileSize(size: Long): String {
     if (size <= 0) return "0 B"
     val units = arrayOf("B", "KB", "MB", "GB", "TB")
     val digitGroups = (Math.log10(size.toDouble()) / Math.log10(1024.0)).toInt()
-    return String.format(Locale.getDefault(), "%.1f %s", size / Math.pow(1024.0, digitGroups.toDouble()), units[digitGroups])
+    return String.format("%.1f %s", size / Math.pow(1024.0, digitGroups.toDouble()), units[digitGroups])
 }

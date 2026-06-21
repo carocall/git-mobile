@@ -22,6 +22,7 @@ class MainActivity : ComponentActivity() {
             val sortOrder by settingsManager.repoSortOrderFlow.collectAsState(initial = RepoSortOrder.TIME)
             val globalGitName by settingsManager.globalGitNameFlow.collectAsState(initial = "")
             val globalGitEmail by settingsManager.globalGitEmailFlow.collectAsState(initial = "")
+            val gitAccounts by settingsManager.gitAccountsFlow.collectAsState(initial = emptyList())
             val scope = rememberCoroutineScope()
 
             GitMobileTheme(themeMode = themeMode) {
@@ -38,6 +39,13 @@ class MainActivity : ComponentActivity() {
                     globalGitEmail = globalGitEmail,
                     onGlobalGitIdentityChange = { name, email ->
                         scope.launch { settingsManager.saveGlobalGitIdentity(name, email) }
+                    },
+                    gitAccounts = gitAccounts,
+                    onSaveGitAccount = { account ->
+                        scope.launch { settingsManager.saveGitAccount(account) }
+                    },
+                    onDeleteGitAccount = { accountId ->
+                        scope.launch { settingsManager.deleteGitAccount(accountId) }
                     }
                 )
             }

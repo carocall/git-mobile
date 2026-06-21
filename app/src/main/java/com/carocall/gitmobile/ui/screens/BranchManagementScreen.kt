@@ -29,6 +29,7 @@ import com.carocall.gitmobile.R
 import com.carocall.gitmobile.data.git.GitManager
 import com.carocall.gitmobile.data.model.BranchInfo
 import com.carocall.gitmobile.data.model.BranchType
+import com.carocall.gitmobile.data.model.GitAccount
 import com.carocall.gitmobile.ui.component.ErrorDialog
 import com.carocall.gitmobile.ui.component.InputSheet
 import kotlinx.coroutines.launch
@@ -36,11 +37,15 @@ import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BranchManagementScreen(repoRoot: File, onBack: () -> Unit) {
+fun BranchManagementScreen(
+    repoRoot: File,
+    gitAccounts: List<GitAccount> = emptyList(),
+    onBack: () -> Unit
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var branches by remember { mutableStateOf<List<BranchInfo>>(emptyList()) }
-    var selectedTabIndex by remember { mutableIntStateOf(0) }
+    var selectedTabIndex by remember { mutableStateOf(0) }
     var showCreateDialog by remember { mutableStateOf(false) }
     var branchToDelete by remember { mutableStateOf<BranchInfo?>(null) }
     var branchToCheckoutRemote by remember { mutableStateOf<BranchInfo?>(null) }
@@ -56,13 +61,21 @@ fun BranchManagementScreen(repoRoot: File, onBack: () -> Unit) {
             if (fetchRemote) {
                 isRefreshing = true
                 refreshProgress = "Fetching..."
-                val (_, user, token) = GitManager.getRemoteConfig(repoRoot)
+                val config = GitManager.getRemoteConfig(repoRoot)
+                
+                // Resolve credentials
+                val account = gitAccounts.find { it.id == config.accountId }
+                val credentials = if (account != null) {
+                    Pair(account.username, account.token)
+                } else {
+                    Pair("", "")
+                }
+                val user = credentials.first
+                val token = credentials.second
+
                 val monitor = object : org.eclipse.jgit.lib.EmptyProgressMonitor() {
                     override fun beginTask(title: String?, totalWork: Int) {
                         refreshProgress = title ?: "Working..."
-                    }
-                    override fun update(completed: Int) {
-                        // 如果有总进度可以显示百分比
                     }
                 }
                 GitManager.fetch(repoRoot, user, token, progressMonitor = monitor)

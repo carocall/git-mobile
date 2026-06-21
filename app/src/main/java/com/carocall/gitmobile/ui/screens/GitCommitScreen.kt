@@ -28,6 +28,7 @@ import androidx.compose.ui.res.stringResource
 import com.carocall.gitmobile.R
 import com.carocall.gitmobile.data.git.GitManager
 import com.carocall.gitmobile.data.model.CommitInfo
+import com.carocall.gitmobile.data.model.GitAccount
 import com.carocall.gitmobile.data.model.RepoStatus
 import com.carocall.gitmobile.ui.component.CommitChangesSheet
 import com.carocall.gitmobile.ui.component.DiffSheet
@@ -44,6 +45,7 @@ fun GitCommitScreen(
     repoRoot: File, 
     globalGitName: String = "",
     globalGitEmail: String = "",
+    gitAccounts: List<GitAccount> = emptyList(),
     onBack: () -> Unit,
     onGoToRemoteConfig: (String) -> Unit = {},
     onGoToBranchManagement: (String) -> Unit = {}
@@ -58,7 +60,7 @@ fun GitCommitScreen(
     var sessionToken by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var loadingStatus by remember { mutableStateOf("") }
-    var remoteConfig by remember { mutableStateOf(com.carocall.gitmobile.data.model.RemoteProfile("", "", "", "")) }
+    var remoteConfig by remember { mutableStateOf(com.carocall.gitmobile.data.model.RemoteProfile("", "", null)) }
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     var isInitialLoading by remember { mutableStateOf(true) }
     var localIdentity by remember { mutableStateOf("" to "") }
@@ -117,13 +119,34 @@ fun GitCommitScreen(
             val config = GitManager.getRemoteConfig(repoRoot)
             remoteConfig = config
             val url = config.url
-            val user = config.user
-            val savedToken = config.token
+            
+            // Resolve effective credentials
+            val accountId = config.accountId
+            
+            if (config.url.isNotBlank() && accountId.isNullOrBlank() && forceAuth) {
+                Toast.makeText(context, "No account associated with this repository. Please select an account in Remote Settings.", Toast.LENGTH_LONG).show()
+                onGoToRemoteConfig(repoRoot.absolutePath)
+                return@launch
+            }
+
+            val account = if (!accountId.isNullOrBlank()) gitAccounts.find { it.id == accountId } else null
+            
+            if (config.url.isNotBlank() && !accountId.isNullOrBlank() && account == null && forceAuth) {
+                // If account ID is saved but not found in global list
+                val accountCount = gitAccounts.size
+                Toast.makeText(context, "Account not found (ID: $accountId). Total accounts: $accountCount. Please re-configure.", Toast.LENGTH_LONG).show()
+                onGoToRemoteConfig(repoRoot.absolutePath)
+                return@launch
+            }
+
+            val user = account?.username ?: ""
+            val savedToken = account?.token ?: ""
             val currentToken = if (sessionToken.isBlank()) savedToken else sessionToken
             
             if (url.isBlank()) {
                 onGoToRemoteConfig(repoRoot.absolutePath)
             } else if (forceAuth && (user.isBlank() || currentToken.isBlank())) {
+                Toast.makeText(context, "Authentication failed: Selected account has no username or token.", Toast.LENGTH_SHORT).show()
                 onGoToRemoteConfig(repoRoot.absolutePath)
             } else {
                 action(url, user, currentToken)
@@ -185,7 +208,7 @@ fun GitCommitScreen(
         }
     }
 
-    fun performSync(url: String, user: String, token: String) {
+    fun performSync(user: String, token: String) {
         val pullFailedMsg = context.getString(R.string.sync_pull_failed)
         val pushFailedPrefix = context.getString(R.string.push)
         
@@ -199,7 +222,6 @@ fun GitCommitScreen(
             }
             GitManager.sync(
                 repoRoot, 
-                url, 
                 user, 
                 token,
                 pullFailedMsg = pullFailedMsg,
@@ -355,8 +377,8 @@ fun GitCommitScreen(
                                 Icon(Icons.Default.Download, stringResource(R.string.pull))
                             }
                             IconButton(onClick = {
-                                withRemoteConfig(forceAuth = true) { url, u, t ->
-                                    performSync(url, u, t)
+                                withRemoteConfig(forceAuth = true) { _, u, t ->
+                                    performSync(u, t)
                                 }
                             }) {
                                 Icon(Icons.Default.Sync, stringResource(R.string.one_click_sync))

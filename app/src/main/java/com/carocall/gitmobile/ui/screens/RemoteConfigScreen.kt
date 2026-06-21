@@ -19,6 +19,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.carocall.gitmobile.R
 import com.carocall.gitmobile.data.git.GitManager
+import com.carocall.gitmobile.data.model.GitAccount
 import com.carocall.gitmobile.data.model.RemoteProfile
 import com.carocall.gitmobile.ui.component.ErrorDialog
 import com.carocall.gitmobile.ui.component.RemoteProfileSheet
@@ -27,11 +28,16 @@ import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RemoteConfigScreen(repoRoot: File, onBack: () -> Unit) {
+fun RemoteConfigScreen(
+    repoRoot: File,
+    gitAccounts: List<GitAccount>,
+    onBack: () -> Unit
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var profiles by remember { mutableStateOf<List<RemoteProfile>>(emptyList()) }
     var currentRemoteUrl by remember { mutableStateOf("") }
+    var currentAccountId by remember { mutableStateOf<String?>(null) }
     var editingProfile by remember { mutableStateOf<RemoteProfile?>(null) }
     var profileToDelete by remember { mutableStateOf<RemoteProfile?>(null) }
     var showAddDialog by remember { mutableStateOf(false) }
@@ -43,6 +49,7 @@ fun RemoteConfigScreen(repoRoot: File, onBack: () -> Unit) {
             profiles = GitManager.getRemoteProfiles(repoRoot)
             val config = GitManager.getRemoteConfig(repoRoot)
             currentRemoteUrl = config.url
+            currentAccountId = config.accountId
         }
     }
 
@@ -67,14 +74,21 @@ fun RemoteConfigScreen(repoRoot: File, onBack: () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 items(profiles) { profile ->
+                    val account = gitAccounts.find { it.id == profile.accountId }
+                    val effectiveUser = account?.username ?: ""
+                    val effectiveToken = account?.token ?: ""
+                    val accountName = account?.name
+                    
                     RemoteProfileCard(
                         profile = profile,
-                        isInUse = profile.url == currentRemoteUrl,
+                        accountName = accountName,
+                        effectiveUser = effectiveUser,
+                        isInUse = profile.url == currentRemoteUrl && profile.accountId == currentAccountId,
                         onUse = {
                             scope.launch {
                                 GitManager.saveRemoteConfig(repoRoot, profile)
                                 // 切换后自动获取最新的分支信息
-                                GitManager.fetch(repoRoot, profile.user, profile.token)
+                                GitManager.fetch(repoRoot, effectiveUser, effectiveToken)
                                 Toast.makeText(context, context.getString(R.string.remote_config_saved), Toast.LENGTH_SHORT).show()
                                 refresh()
                             }
@@ -86,7 +100,7 @@ fun RemoteConfigScreen(repoRoot: File, onBack: () -> Unit) {
                         onTest = {
                             scope.launch {
                                 isTestingConnection = true
-                                val result = GitManager.testConnection(profile.url, profile.user, profile.token)
+                                val result = GitManager.testConnection(profile.url, effectiveUser, effectiveToken)
                                 isTestingConnection = false
                                 if (result.isSuccess) {
                                     Toast.makeText(context, context.getString(R.string.connection_success), Toast.LENGTH_SHORT).show()
@@ -114,6 +128,7 @@ fun RemoteConfigScreen(repoRoot: File, onBack: () -> Unit) {
         if (showAddDialog) {
             RemoteProfileSheet(
                 title = stringResource(R.string.add_remote_title),
+                accounts = gitAccounts,
                 onDismiss = { showAddDialog = false },
                 onConfirm = { profile ->
                     scope.launch {
@@ -129,6 +144,7 @@ fun RemoteConfigScreen(repoRoot: File, onBack: () -> Unit) {
             RemoteProfileSheet(
                 title = stringResource(R.string.edit_remote),
                 initialProfile = editingProfile,
+                accounts = gitAccounts,
                 onDismiss = { editingProfile = null },
                 onConfirm = { profile ->
                     scope.launch {
@@ -190,6 +206,8 @@ fun RemoteConfigScreen(repoRoot: File, onBack: () -> Unit) {
 @Composable
 fun RemoteProfileCard(
     profile: RemoteProfile,
+    accountName: String?,
+    effectiveUser: String,
     isInUse: Boolean,
     onUse: () -> Unit,
     onEdit: () -> Unit,
@@ -246,14 +264,16 @@ fun RemoteProfileCard(
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    Icons.Default.Person,
+                    Icons.Default.AccountBox,
                     contentDescription = null,
                     modifier = Modifier.size(14.dp),
                     tint = MaterialTheme.colorScheme.primary
                 )
                 Spacer(Modifier.width(4.dp))
                 Text(
-                    text = if (profile.user.isNotBlank()) profile.user else stringResource(R.string.no_identity),
+                    text = if (!accountName.isNullOrBlank()) "$accountName ($effectiveUser)" 
+                           else if (effectiveUser.isNotBlank()) effectiveUser 
+                           else stringResource(R.string.no_identity),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

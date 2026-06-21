@@ -158,4 +158,14 @@
     <string name="identity_missing_title">身份信息缺失</string>
     <string name="identity_missing_msg">请在“设置”或“远程配置”中配置 Git 姓名和邮箱，然后再进行提交。</string>
     <string name="configure_now">立即配置</string>
+    <string name="identity_section">身份标识</string>
+    <string name="git_accounts_title">托管平台账号</string>
+    <string name="git_accounts_subtitle">已管理 %d 个账号</string>
+    <string name="no_git_accounts">未保存全局账号</string>
+    <string name="add_account">添加账号</string>
+    <string name="edit_account">编辑账号</string>
+    <string name="account_name_label">账号别名</string>
+    <string name="token_or_password">Token / 密码</string>
+    <string name="use_global_account">使用全局账号</string>
+    <string name="select_git_account">选择账号</string>
 </resources>

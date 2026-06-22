@@ -217,14 +217,13 @@ fun RemoteProfileCard(
     onDelete: () -> Unit,
     onTest: () -> Unit
 ) {
-    Card(
+    Surface(
+        onClick = { if (!isInUse) onUse() },
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isInUse) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-            else MaterialTheme.colorScheme.surface
-        ),
-        border = if (isInUse) BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)) else null
+        shape = MaterialTheme.shapes.medium,
+        color = if (isInUse) MaterialTheme.colorScheme.primaryContainer 
+                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+        border = if (isInUse) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null
     ) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -232,6 +231,7 @@ fun RemoteProfileCard(
                     text = profile.name,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
+                    color = if (isInUse) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f)
                 )
                 if (isInUse) {
@@ -249,7 +249,13 @@ fun RemoteProfileCard(
                     Spacer(Modifier.width(8.dp))
                 }
                 IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp))
+                    Icon(
+                        Icons.Default.Delete, 
+                        null, 
+                        tint = if (isInUse) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f) 
+                               else MaterialTheme.colorScheme.error, 
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
             }
 
@@ -258,7 +264,8 @@ fun RemoteProfileCard(
             Text(
                 text = profile.url,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = if (isInUse) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) 
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -270,7 +277,8 @@ fun RemoteProfileCard(
                     Icons.Default.AccountBox,
                     contentDescription = null,
                     modifier = Modifier.size(14.dp),
-                    tint = MaterialTheme.colorScheme.primary
+                    tint = if (isInUse) MaterialTheme.colorScheme.onPrimaryContainer 
+                           else MaterialTheme.colorScheme.primary
                 )
                 Spacer(Modifier.width(4.dp))
                 Text(
@@ -278,7 +286,8 @@ fun RemoteProfileCard(
                            else if (effectiveUser.isNotBlank()) effectiveUser 
                            else stringResource(R.string.no_identity),
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = if (isInUse) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) 
+                            else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
@@ -292,7 +301,16 @@ fun RemoteProfileCard(
                 OutlinedButton(
                     onClick = onTest,
                     modifier = Modifier.height(36.dp),
-                    contentPadding = PaddingValues(horizontal = 12.dp)
+                    contentPadding = PaddingValues(horizontal = 12.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = if (isInUse) MaterialTheme.colorScheme.onPrimaryContainer 
+                                      else MaterialTheme.colorScheme.primary
+                    ),
+                    border = BorderStroke(
+                        1.dp, 
+                        if (isInUse) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f) 
+                        else MaterialTheme.colorScheme.outline
+                    )
                 ) {
                     Icon(Icons.Default.CheckCircle, null, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(4.dp))
@@ -302,7 +320,16 @@ fun RemoteProfileCard(
                 OutlinedButton(
                     onClick = onEdit,
                     modifier = Modifier.height(36.dp),
-                    contentPadding = PaddingValues(horizontal = 12.dp)
+                    contentPadding = PaddingValues(horizontal = 12.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = if (isInUse) MaterialTheme.colorScheme.onPrimaryContainer 
+                                      else MaterialTheme.colorScheme.primary
+                    ),
+                    border = BorderStroke(
+                        1.dp, 
+                        if (isInUse) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f) 
+                        else MaterialTheme.colorScheme.outline
+                    )
                 ) {
                     Icon(Icons.Default.Edit, null, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(4.dp))

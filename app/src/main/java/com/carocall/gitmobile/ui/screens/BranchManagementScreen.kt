@@ -342,22 +342,14 @@ fun BranchCard(
     onClick: () -> Unit,
     onDelete: () -> Unit
 ) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(MaterialTheme.shapes.medium)
-            .clickable { onClick() },
-        colors = CardDefaults.cardColors(
-            containerColor = if (branch.isCurrent) 
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-            else 
-                MaterialTheme.colorScheme.surface
-        ),
-        border = if (branch.isCurrent) 
-            BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
-        else 
-            BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (branch.isCurrent) 2.dp else 0.dp)
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        color = if (branch.isCurrent) MaterialTheme.colorScheme.primaryContainer 
+                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+        border = if (branch.isCurrent) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) 
+                 else null
     ) {
         Row(
             modifier = Modifier
@@ -396,7 +388,7 @@ fun BranchCard(
                         text = branch.displayName,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = if (branch.isCurrent) FontWeight.Bold else FontWeight.Medium,
-                        color = if (branch.isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                        color = if (branch.isCurrent) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false)
@@ -436,14 +428,16 @@ fun BranchCard(
                 Spacer(Modifier.height(4.dp))
                 
                 Surface(
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f),
+                    color = if (branch.isCurrent) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.1f)
+                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f),
                     shape = RoundedCornerShape(4.dp)
                 ) {
                     Text(
                         text = branch.shortHash,
                         style = MaterialTheme.typography.labelSmall,
                         fontFamily = FontFamily.Monospace,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = if (branch.isCurrent) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                     )
                 }
@@ -465,7 +459,8 @@ fun BranchCard(
                 Icon(
                     Icons.Default.ChevronRight,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.outlineVariant,
+                    tint = if (branch.isCurrent) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f)
+                           else MaterialTheme.colorScheme.outlineVariant,
                     modifier = Modifier.size(20.dp)
                 )
             }

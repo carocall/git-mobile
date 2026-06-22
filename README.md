@@ -1,6 +1,54 @@
+<div align="center">
+
+<img src="readme_images/logo.png" alt="GitMobile Logo" width="150" />
+
 # GitMobile
 
+### 现代、轻量级的 Android Git 客户端
+
+基于 Jetpack Compose 开发 · 使用 JGit 引擎 · 专为移动设备优化
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Kotlin](https://img.shields.io/badge/Language-Kotlin-blue.svg)](https://kotlinlang.org)
+[![Jetpack Compose](https://img.shields.io/badge/UI-Jetpack%20Compose-purple.svg)](https://developer.android.com/jetpack/compose)
+[![API](https://img.shields.io/badge/Min%20SDK-26-orange.svg)](https://developer.android.com/about/versions/oreo)
+
+---
+
+</div>
+
 GitMobile 是一款基于 Jetpack Compose 开发的现代、轻量级 Android Git 客户端。它利用 JGit 库提供强大的 Git 核心功能，并专为移动设备优化了操作体验。
+
+## 界面预览
+
+<div align="center">
+<table>
+  <tr>
+    <td align="center" width="50%"><b>首页工作台</b></td>
+    <td align="center" width="50%"><b>远程仓库列表</b></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="readme_images/首页工作台.jpg" width="270" /></td>
+    <td align="center"><img src="readme_images/远程仓库列表.jpg" width="270" /></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Git 核心操作</b></td>
+    <td align="center"><b>文件浏览列表</b></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="readme_images/git核心界面.jpg" width="270" /></td>
+    <td align="center"><img src="readme_images/文件浏览列表.jpg" width="270" /></td>
+  </tr>
+  <tr>
+    <td align="center"><b>代码编辑器</b></td>
+    <td align="center"><b>文本编辑器</b></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="readme_images/代码编辑器.jpg" width="270" /></td>
+    <td align="center"><img src="readme_images/文本编辑器.jpg" width="270" /></td>
+  </tr>
+</table>
+</div>
 
 ## 主要功能
 
@@ -58,23 +106,3 @@ GitMobile 是一款基于 Jetpack Compose 开发的现代、轻量级 Android Gi
 ## 开源协议
 
 本项目采用 **MIT** 协议。
-
-Copyright (c) 2024 GitMobile Contributors
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.

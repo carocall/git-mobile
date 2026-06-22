@@ -171,5 +171,6 @@
     <string name="recent_files">Recent Files</string>
     <string name="workbench_title">Workbench</string>
     <string name="signed_in_as">Signed in as %s</string>
-    <string name="guest_user">Guest User</string>
+    <string name="identity_not_configured">Global identity not configured</string>
+    <string name="search_repositories">Search repositories...</string>
 </resources>

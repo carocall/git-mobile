@@ -171,5 +171,6 @@
     <string name="recent_files">最近打开</string>
     <string name="workbench_title">工作台</string>
     <string name="signed_in_as">已登录为 %s</string>
-    <string name="guest_user">访客用户</string>
+    <string name="identity_not_configured">未配置全局身份信息</string>
+    <string name="search_repositories">搜索仓库...</string>
 </resources>

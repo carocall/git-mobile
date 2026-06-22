@@ -113,7 +113,7 @@ fun RepoListScreen(
                                 text = if (globalGitName.isNotEmpty()) {
                                     stringResource(R.string.signed_in_as, globalGitName)
                                 } else {
-                                    stringResource(R.string.guest_user)
+                                    stringResource(R.string.identity_not_configured)
                                 },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = Color.Gray
@@ -144,7 +144,7 @@ fun RepoListScreen(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
                         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                        placeholder = { Text("Search repositories...") },
+                        placeholder = { Text(stringResource(R.string.search_repositories)) },
                         leadingIcon = { Icon(Icons.Default.Search, null) },
                         trailingIcon = if (searchQuery.isNotEmpty()) {
                             {
@@ -183,7 +183,7 @@ fun RepoListScreen(
                         )
                         QuickActionItem(
                             icon = Icons.Default.Settings,
-                            label = "Settings",
+                            label = stringResource(R.string.setting_view_title_name),
                             onClick = onOpenSettings,
                             modifier = Modifier.weight(1f)
                         )

@@ -464,6 +464,29 @@ object GitManager {
         }
     }
 
+    suspend fun getCommitInfo(repoRoot: File, commitId: String): CommitInfo? = withContext(Dispatchers.IO) {
+        try {
+            Git.open(repoRoot).use { git ->
+                val repository = git.repository
+                val objectId = repository.resolve(commitId)
+                val revWalk = org.eclipse.jgit.revwalk.RevWalk(repository)
+                val rev = revWalk.parseCommit(objectId)
+                
+                val remoteName = getRemoteName(git)
+                val remoteHead = repository.findRef("refs/remotes/$remoteName/main")?.objectId
+                    ?: repository.findRef("refs/remotes/$remoteName/master")?.objectId
+                
+                CommitInfo(
+                    id = rev.name,
+                    author = rev.authorIdent.name,
+                    message = rev.shortMessage,
+                    time = rev.commitTime.toLong() * 1000,
+                    isRemote = rev.name == remoteHead?.name
+                )
+            }
+        } catch (e: Exception) { null }
+    }
+
     suspend fun getHistory(repoRoot: File): List<CommitInfo> = withContext(Dispatchers.IO) {
         try {
             Git.open(repoRoot).use { git ->

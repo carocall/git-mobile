@@ -148,7 +148,41 @@ fun MainApp(
                 onGoToBranchManagement = { repoPath ->
                     val encodedPath = URLEncoder.encode(repoPath, "UTF-8")
                     navController.navigate("branch_management/$encodedPath")
+                },
+                onViewCommit = { repoPath, commitId ->
+                    val encodedPath = URLEncoder.encode(repoPath, "UTF-8")
+                    navController.navigate("commit_detail/$encodedPath/$commitId")
+                },
+                onViewDiff = { repoPath, commitId, filePath ->
+                    val encodedPath = URLEncoder.encode(repoPath, "UTF-8")
+                    val encodedFile = URLEncoder.encode(filePath, "UTF-8")
+                    navController.navigate("diff/$encodedPath/$commitId/$encodedFile")
                 }
+            )
+        }
+        composable("commit_detail/{repoPath}/{commitId}") { backStackEntry ->
+            val repoPath = URLDecoder.decode(backStackEntry.arguments?.getString("repoPath") ?: "", "UTF-8")
+            val commitId = backStackEntry.arguments?.getString("commitId") ?: ""
+            CommitDetailScreen(
+                repoRoot = File(repoPath),
+                commitId = commitId,
+                onBack = { navController.popBackStack() },
+                onViewDiff = { filePath ->
+                    val encodedPath = URLEncoder.encode(repoPath, "UTF-8")
+                    val encodedFile = URLEncoder.encode(filePath, "UTF-8")
+                    navController.navigate("diff/$encodedPath/$commitId/$encodedFile")
+                }
+            )
+        }
+        composable("diff/{repoPath}/{commitId}/{filePath}") { backStackEntry ->
+            val repoPath = URLDecoder.decode(backStackEntry.arguments?.getString("repoPath") ?: "", "UTF-8")
+            val commitId = backStackEntry.arguments?.getString("commitId") ?: ""
+            val filePath = URLDecoder.decode(backStackEntry.arguments?.getString("filePath") ?: "", "UTF-8")
+            DiffScreen(
+                repoRoot = File(repoPath),
+                commitId = commitId,
+                filePath = filePath,
+                onBack = { navController.popBackStack() }
             )
         }
         composable("remote_config/{repoPath}") { backStackEntry ->

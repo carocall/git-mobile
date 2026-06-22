@@ -1,19 +1,10 @@
 package com.carocall.gitmobile.ui.screens
 
 import android.widget.Toast
-import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -26,12 +17,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
 import com.carocall.gitmobile.R
-import com.carocall.gitmobile.data.git.GitManager
 import com.carocall.gitmobile.data.model.GitAccount
-import com.carocall.gitmobile.ui.component.CloneSheet
-import com.carocall.gitmobile.ui.component.ErrorDialog
 import com.carocall.gitmobile.ui.component.InputSheet
-import kotlinx.coroutines.launch
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
@@ -47,22 +34,16 @@ fun RepoListScreen(
     gitAccounts: List<GitAccount>,
     onOpenRepo: (File) -> Unit,
     onOpenSettings: () -> Unit,
-    onManageAccounts: () -> Unit
+    onManageAccounts: () -> Unit,
+    onAddRepo: () -> Unit
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     val rootDir = remember { context.filesDir }
     
     var repos by remember { mutableStateOf(emptyList<File>()) }
-    var showCreateDialog by remember { mutableStateOf(false) }
-    var showCloneDialog by remember { mutableStateOf(false) }
     var showRenameDialog by remember { mutableStateOf<File?>(null) }
     var showDeleteConfirm by remember { mutableStateOf<File?>(null) }
-    var cloningProgress by remember { mutableStateOf<Pair<String, Float>?>(null) }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
     val dateFormat = remember { SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()) }
-
-    var isFabExpanded by remember { mutableStateOf(false) }
 
     fun refreshRepos() {
         val list = rootDir.listFiles()?.filter { 
@@ -76,10 +57,6 @@ fun RepoListScreen(
 
     LaunchedEffect(sortOrder) { refreshRepos() }
 
-    BackHandler(enabled = isFabExpanded) {
-        isFabExpanded = false
-    }
-
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -92,32 +69,11 @@ fun RepoListScreen(
             )
         },
         floatingActionButton = {
-            Column(horizontalAlignment = Alignment.End) {
-                AnimatedVisibility(
-                    visible = isFabExpanded,
-                    enter = fadeIn() + expandVertically(),
-                    exit = fadeOut() + shrinkVertically()
-                ) {
-                    Column(horizontalAlignment = Alignment.End) {
-                        FloatingActionButton(
-                            onClick = { isFabExpanded = false; showCloneDialog = true },
-                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                            modifier = Modifier.padding(bottom = 12.dp)
-                        ) { Icon(Icons.Default.CloudDownload, stringResource(R.string.clone_repo)) }
-
-                        FloatingActionButton(
-                            onClick = { isFabExpanded = false; showCreateDialog = true },
-                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                            modifier = Modifier.padding(bottom = 12.dp)
-                        ) { Icon(Icons.Default.Add, stringResource(R.string.create_repo)) }
-                    }
-                }
-                FloatingActionButton(
-                    onClick = { isFabExpanded = !isFabExpanded },
-                    containerColor = if (isFabExpanded) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primaryContainer
-                ) {
-                    Icon(if (isFabExpanded) Icons.Default.Close else Icons.Default.Add, null)
-                }
+            FloatingActionButton(
+                onClick = onAddRepo,
+                containerColor = MaterialTheme.colorScheme.primaryContainer
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "Add Repository")
             }
         }
     ) { padding ->
@@ -179,19 +135,6 @@ fun RepoListScreen(
             }
         }
 
-        if (showCreateDialog) {
-            InputSheet(title = stringResource(R.string.create_new_project), onDismiss = { showCreateDialog = false }, onConfirm = { name ->
-                val f = File(rootDir, name)
-                if (f.mkdirs()) {
-                    scope.launch {
-                        GitManager.initRepo(f)
-                        refreshRepos()
-                        showCreateDialog = false
-                    }
-                }
-            })
-        }
-
         if (showRenameDialog != null) {
             val repo = showRenameDialog!!
             InputSheet(title = stringResource(R.string.rename_project_title), initialValue = repo.name, onDismiss = { showRenameDialog = null }, onConfirm = { newName ->
@@ -203,94 +146,6 @@ fun RepoListScreen(
                     Toast.makeText(context, context.getString(R.string.rename_failed), Toast.LENGTH_SHORT).show()
                 }
             })
-        }
-
-        if (showCloneDialog) {
-            CloneSheet(
-                accounts = gitAccounts,
-                onManageAccounts = onManageAccounts,
-                onDismiss = { showCloneDialog = false },
-                onConfirm = { url, name, branch, accountId ->
-                    val f = File(rootDir, name)
-                    if (f.exists()) {
-                        Toast.makeText(context, context.getString(R.string.dir_already_exists), Toast.LENGTH_SHORT).show()
-                    } else {
-                        showCloneDialog = false
-                        scope.launch {
-                            val account = gitAccounts.find { it.id == accountId }
-                            val user = account?.username
-                            val token = account?.token
-
-                            val progressMonitor = object : org.eclipse.jgit.lib.ProgressMonitor {
-                                // ... progress monitor implementation
-                                private var total = 0
-                                private var completed = 0
-                                private var taskName = ""
-
-                                override fun start(totalTasks: Int) {}
-                                override fun beginTask(title: String, totalWork: Int) {
-                                    taskName = title
-                                    total = totalWork
-                                    completed = 0
-                                    cloningProgress = taskName to 0f
-                                }
-                                override fun update(completedUnits: Int) {
-                                    completed += completedUnits
-                                    if (total > 0) {
-                                        cloningProgress = taskName to (completed.toFloat() / total)
-                                    } else {
-                                        cloningProgress = taskName to 0f
-                                    }
-                                }
-                                override fun endTask() {}
-                                override fun isCancelled(): Boolean = false
-                                override fun showDuration(enabled: Boolean) {}
-                            }
-
-                            val result = GitManager.clone(
-                                dir = f,
-                                url = url,
-                                username = user,
-                                token = token,
-                                accountId = accountId,
-                                branch = branch.ifBlank { null },
-                                progressMonitor = progressMonitor
-                            )
-                            
-                            cloningProgress = null
-                            if (result.isSuccess) {
-                                Toast.makeText(context, context.getString(R.string.clone_success), Toast.LENGTH_SHORT).show()
-                                refreshRepos()
-                            } else {
-                                errorMessage = context.getString(R.string.clone_failed, result.exceptionOrNull()?.message)
-                            }
-                        }
-                    }
-                }
-            )
-        }
-
-        if (cloningProgress != null) {
-            val (task, progress) = cloningProgress!!
-            AlertDialog(
-                onDismissRequest = {},
-                title = { Text(stringResource(R.string.cloning_repo)) },
-                text = {
-                    Column {
-                        Text(task)
-                        Spacer(Modifier.height(8.dp))
-                        if (progress > 0) {
-                            LinearProgressIndicator(
-                                progress = { progress },
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                        } else {
-                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                        }
-                    }
-                },
-                confirmButton = {}
-            )
         }
 
         if (showDeleteConfirm != null) {
@@ -313,7 +168,5 @@ fun RepoListScreen(
                 }
             )
         }
-
-        errorMessage?.let { ErrorDialog(error = it, onDismiss = { errorMessage = null }) }
     }
 }

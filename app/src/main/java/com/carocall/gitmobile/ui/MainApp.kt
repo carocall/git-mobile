@@ -75,6 +75,21 @@ fun MainApp(
                 },
                 onManageAccounts = {
                     navController.navigate("git_accounts")
+                },
+                onAddRepo = {
+                    navController.navigate("add_repo")
+                }
+            )
+        }
+        composable("add_repo") {
+            AddRepoScreen(
+                gitAccounts = gitAccounts,
+                onBack = { navController.popBackStack() },
+                onRepoCreated = {
+                    navController.popBackStack()
+                },
+                onManageAccounts = {
+                    navController.navigate("git_accounts")
                 }
             )
         }

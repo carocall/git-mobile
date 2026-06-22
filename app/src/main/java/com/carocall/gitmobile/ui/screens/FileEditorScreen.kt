@@ -31,6 +31,7 @@ import coil.compose.AsyncImage
 import androidx.compose.ui.res.stringResource
 import com.carocall.gitmobile.R
 import com.carocall.gitmobile.data.SettingsManager
+import com.carocall.gitmobile.data.model.RecentFile
 import com.carocall.gitmobile.utils.EditorConfig
 import com.carocall.gitmobile.utils.isBinaryFile
 import com.carocall.gitmobile.utils.openFileExternally
@@ -58,6 +59,22 @@ import java.io.File
  */
 @Composable
 fun FileEditorScreen(file: File, onBack: () -> Unit) {
+    val context = LocalContext.current
+    val settingsManager = remember { SettingsManager(context) }
+    val scope = rememberCoroutineScope()
+    
+    // 记录最近访问
+    LaunchedEffect(file.absolutePath) {
+        val repoName = file.parentFile?.name ?: "Unknown"
+        settingsManager.addRecentFile(
+            RecentFile(
+                path = file.absolutePath,
+                name = file.name,
+                repoName = repoName
+            )
+        )
+    }
+
     val ext = file.extension.lowercase()
     
     when {

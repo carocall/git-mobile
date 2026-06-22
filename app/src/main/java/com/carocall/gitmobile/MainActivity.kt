@@ -23,6 +23,7 @@ class MainActivity : ComponentActivity() {
             val globalGitName by settingsManager.globalGitNameFlow.collectAsState(initial = "")
             val globalGitEmail by settingsManager.globalGitEmailFlow.collectAsState(initial = "")
             val gitAccounts by settingsManager.gitAccountsFlow.collectAsState(initial = emptyList())
+            val recentFiles by settingsManager.recentFilesFlow.collectAsState(initial = emptyList())
             val scope = rememberCoroutineScope()
 
             GitMobileTheme(themeMode = themeMode) {
@@ -41,6 +42,7 @@ class MainActivity : ComponentActivity() {
                         scope.launch { settingsManager.saveGlobalGitIdentity(name, email) }
                     },
                     gitAccounts = gitAccounts,
+                    recentFiles = recentFiles,
                     onSaveGitAccount = { account ->
                         scope.launch { settingsManager.saveGitAccount(account) }
                     },

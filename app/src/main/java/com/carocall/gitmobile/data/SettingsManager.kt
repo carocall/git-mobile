@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.carocall.gitmobile.data.model.GitAccount
+import com.carocall.gitmobile.data.model.RecentFile
 import com.carocall.gitmobile.ui.screens.RepoSortOrder
 import com.carocall.gitmobile.ui.theme.ThemeMode
 import kotlinx.coroutines.flow.Flow
@@ -30,6 +31,57 @@ class SettingsManager(private val context: Context) {
         private val GLOBAL_GIT_NAME_KEY = stringPreferencesKey("global_git_name")
         private val GLOBAL_GIT_EMAIL_KEY = stringPreferencesKey("global_git_email")
         private val GIT_ACCOUNTS_KEY = stringPreferencesKey("git_accounts")
+        private val RECENT_FILES_KEY = stringPreferencesKey("recent_files")
+    }
+
+    val recentFilesFlow: Flow<List<RecentFile>> = context.dataStore.data
+        .map { preferences ->
+            val json = preferences[RECENT_FILES_KEY] ?: "[]"
+            parseRecentFiles(json)
+        }
+
+    suspend fun addRecentFile(file: RecentFile) {
+        context.dataStore.edit { preferences ->
+            val files = parseRecentFiles(preferences[RECENT_FILES_KEY] ?: "[]").toMutableList()
+            // Remove if already exists (to update timestamp and move to front)
+            files.removeAll { it.path == file.path }
+            files.add(0, file)
+            // Limit to 10 recent files
+            val limited = files.take(10)
+            preferences[RECENT_FILES_KEY] = serializeRecentFiles(limited)
+        }
+    }
+
+    private fun parseRecentFiles(json: String): List<RecentFile> {
+        return try {
+            val list = mutableListOf<RecentFile>()
+            val array = JSONArray(json)
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                list.add(RecentFile(
+                    path = obj.getString("path"),
+                    name = obj.getString("name"),
+                    repoName = obj.getString("repoName"),
+                    lastAccessed = obj.getLong("lastAccessed")
+                ))
+            }
+            list
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    private fun serializeRecentFiles(files: List<RecentFile>): String {
+        val array = JSONArray()
+        files.forEach { file ->
+            val obj = JSONObject()
+            obj.put("path", file.path)
+            obj.put("name", file.name)
+            obj.put("repoName", file.repoName)
+            obj.put("lastAccessed", file.lastAccessed)
+            array.put(obj)
+        }
+        return array.toString()
     }
 
     val themeModeFlow: Flow<ThemeMode> = context.dataStore.data

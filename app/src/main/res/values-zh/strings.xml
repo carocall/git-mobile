@@ -168,4 +168,8 @@
     <string name="token_or_password">Token / 密码</string>
     <string name="use_global_account">使用全局账号</string>
     <string name="select_git_account">选择账号</string>
+    <string name="recent_files">最近打开</string>
+    <string name="workbench_title">工作台</string>
+    <string name="signed_in_as">已登录为 %s</string>
+    <string name="guest_user">访客用户</string>
 </resources>

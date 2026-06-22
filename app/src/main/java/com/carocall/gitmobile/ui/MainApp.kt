@@ -7,6 +7,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.carocall.gitmobile.data.model.GitAccount
+import com.carocall.gitmobile.data.model.RecentFile
 import com.carocall.gitmobile.ui.screens.*
 import com.carocall.gitmobile.ui.theme.ThemeMode
 
@@ -26,6 +27,7 @@ fun MainApp(
     globalGitEmail: String,
     onGlobalGitIdentityChange: (String, String) -> Unit,
     gitAccounts: List<GitAccount>,
+    recentFiles: List<RecentFile>,
     onSaveGitAccount: (GitAccount) -> Unit,
     onDeleteGitAccount: (String) -> Unit
 ) {
@@ -66,9 +68,17 @@ fun MainApp(
             RepoListScreen(
                 sortOrder = sortOrder,
                 gitAccounts = gitAccounts,
+                recentFiles = recentFiles,
+                globalGitName = globalGitName,
+                globalGitEmail = globalGitEmail,
+                onUpdateGlobalIdentity = onGlobalGitIdentityChange,
                 onOpenRepo = { repo ->
                     val encodedPath = URLEncoder.encode(repo.absolutePath, "UTF-8")
                     navController.navigate("repo_explorer/$encodedPath")
+                },
+                onOpenFile = { file ->
+                    val encodedPath = URLEncoder.encode(file.absolutePath, "UTF-8")
+                    navController.navigate("editor/$encodedPath")
                 },
                 onOpenSettings = {
                     navController.navigate("settings")

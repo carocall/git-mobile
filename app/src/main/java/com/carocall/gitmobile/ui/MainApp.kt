@@ -72,6 +72,9 @@ fun MainApp(
                 },
                 onOpenSettings = {
                     navController.navigate("settings")
+                },
+                onManageAccounts = {
+                    navController.navigate("git_accounts")
                 }
             )
         }
@@ -138,6 +141,9 @@ fun MainApp(
             RemoteConfigScreen(
                 repoRoot = File(path),
                 gitAccounts = gitAccounts,
+                onManageAccounts = {
+                    navController.navigate("git_accounts")
+                },
                 onBack = { navController.popBackStack() }
             )
         }

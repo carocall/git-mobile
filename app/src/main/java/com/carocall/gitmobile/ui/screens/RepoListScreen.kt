@@ -46,7 +46,8 @@ fun RepoListScreen(
     sortOrder: RepoSortOrder,
     gitAccounts: List<GitAccount>,
     onOpenRepo: (File) -> Unit,
-    onOpenSettings: () -> Unit
+    onOpenSettings: () -> Unit,
+    onManageAccounts: () -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -207,6 +208,7 @@ fun RepoListScreen(
         if (showCloneDialog) {
             CloneSheet(
                 accounts = gitAccounts,
+                onManageAccounts = onManageAccounts,
                 onDismiss = { showCloneDialog = false },
                 onConfirm = { url, name, branch, accountId ->
                     val f = File(rootDir, name)

@@ -31,6 +31,7 @@ import java.io.File
 fun RemoteConfigScreen(
     repoRoot: File,
     gitAccounts: List<GitAccount>,
+    onManageAccounts: () -> Unit,
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -129,6 +130,7 @@ fun RemoteConfigScreen(
             RemoteProfileSheet(
                 title = stringResource(R.string.add_remote_title),
                 accounts = gitAccounts,
+                onManageAccounts = onManageAccounts,
                 onDismiss = { showAddDialog = false },
                 onConfirm = { profile ->
                     scope.launch {
@@ -145,6 +147,7 @@ fun RemoteConfigScreen(
                 title = stringResource(R.string.edit_remote),
                 initialProfile = editingProfile,
                 accounts = gitAccounts,
+                onManageAccounts = onManageAccounts,
                 onDismiss = { editingProfile = null },
                 onConfirm = { profile ->
                     scope.launch {

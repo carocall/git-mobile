@@ -70,6 +70,7 @@ fun InputSheet(
 @Composable
 fun CloneSheet(
     accounts: List<GitAccount> = emptyList(),
+    onManageAccounts: () -> Unit = {},
     onDismiss: () -> Unit,
     onConfirm: (url: String, name: String, branch: String, accountId: String) -> Unit
 ) {
@@ -171,6 +172,7 @@ fun CloneSheet(
         AccountSelectionDialog(
             accounts = accounts,
             currentAccountId = selectedAccountId,
+            onManageAccounts = onManageAccounts,
             onDismiss = { showAccountSelector = false },
             onSelect = {
                 selectedAccountId = it?.id
@@ -184,12 +186,30 @@ fun CloneSheet(
 fun AccountSelectionDialog(
     accounts: List<GitAccount>,
     currentAccountId: String?,
+    onManageAccounts: () -> Unit,
     onDismiss: () -> Unit,
     onSelect: (GitAccount?) -> Unit
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.select_git_account)) },
+        title = { 
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(stringResource(R.string.select_git_account))
+                Text(
+                    text = stringResource(R.string.configure_now),
+                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.labelLarge,
+                    modifier = Modifier.clickable { 
+                        onDismiss()
+                        onManageAccounts()
+                    }
+                )
+            }
+        },
         text = {
             Column(Modifier.selectableGroup().verticalScroll(rememberScrollState())) {
                 Row(
@@ -230,6 +250,7 @@ fun RemoteProfileSheet(
     title: String,
     initialProfile: RemoteProfile? = null,
     accounts: List<GitAccount> = emptyList(),
+    onManageAccounts: () -> Unit = {},
     onDismiss: () -> Unit,
     onConfirm: (RemoteProfile) -> Unit
 ) {
@@ -311,6 +332,7 @@ fun RemoteProfileSheet(
         AccountSelectionDialog(
             accounts = accounts,
             currentAccountId = selectedAccountId,
+            onManageAccounts = onManageAccounts,
             onDismiss = { showAccountSelector = false },
             onSelect = {
                 selectedAccountId = it?.id

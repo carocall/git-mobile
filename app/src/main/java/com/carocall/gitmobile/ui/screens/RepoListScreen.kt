@@ -202,13 +202,13 @@ fun RepoListScreen(
                         )
                         LazyRow(
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            contentPadding = PaddingValues(bottom = 8.dp)
+                            contentPadding = PaddingValues(bottom = 12.dp)
                         ) {
                             items(recentFiles) { file ->
                                 RecentFileCard(file = file, onClick = { onOpenFile(File(file.path)) })
                             }
                         }
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(12.dp))
                     }
                 }
 

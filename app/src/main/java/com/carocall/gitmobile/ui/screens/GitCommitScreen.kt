@@ -363,6 +363,14 @@ fun GitCommitScreen(
                                         .padding(start = 12.dp, bottom = 16.dp)
                                 ) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
+                                        // Hash prefix
+                                        Text(
+                                            text = commit.id.take(7),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                                            modifier = Modifier.padding(end = 8.dp)
+                                        )
                                         Text(
                                             text = commit.message,
                                             style = MaterialTheme.typography.bodyLarge,
@@ -372,31 +380,12 @@ fun GitCommitScreen(
                                             modifier = Modifier.weight(1f)
                                         )
                                         if (commit.isRemote) {
-                                            Surface(
-                                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                                                shape = CircleShape,
-                                                modifier = Modifier.padding(start = 8.dp)
-                                            ) {
-                                                Row(
-                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Cloud,
-                                                        contentDescription = null,
-                                                        modifier = Modifier.size(10.dp),
-                                                        tint = MaterialTheme.colorScheme.primary
-                                                    )
-                                                    Spacer(Modifier.width(4.dp))
-                                                    Text(
-                                                        text = "Cloud",
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        fontSize = 8.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = MaterialTheme.colorScheme.primary
-                                                    )
-                                                }
-                                            }
+                                            Icon(
+                                                imageVector = Icons.Default.Cloud,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(14.dp),
+                                                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+                                            )
                                         }
                                     }
                                     Spacer(Modifier.height(2.dp))
@@ -413,13 +402,6 @@ fun GitCommitScreen(
                                             text = " • ${timeFormat.format(Date(commit.time))}",
                                             style = MaterialTheme.typography.labelSmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                                        )
-                                        Spacer(Modifier.weight(1f))
-                                        Text(
-                                            text = commit.id.take(7),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
                                         )
                                     }
                                 }

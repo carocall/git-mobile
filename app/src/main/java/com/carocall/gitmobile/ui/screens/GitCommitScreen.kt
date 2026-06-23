@@ -241,6 +241,25 @@ fun GitCommitScreen(
                     }
                 )
 
+                // 仓库身份信息 (显示当前谁在提交)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .clickable { showIdentityMissingDialog = true },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Person, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = if (localIdentity.first.isNotBlank()) "${localIdentity.first} <${localIdentity.second}>" 
+                               else if (globalGitName.isNotBlank()) "${globalGitName} <${globalGitEmail}> (Global)"
+                               else stringResource(R.string.no_identity),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
                 LazyColumn(Modifier.fillMaxSize()) {
                     if (status.hasConflicts) {
                         item {

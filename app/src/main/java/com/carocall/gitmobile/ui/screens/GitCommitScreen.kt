@@ -369,21 +369,33 @@ fun GitCommitScreen(
                                             fontWeight = FontWeight.SemiBold,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.weight(1f, false)
+                                            modifier = Modifier.weight(1f)
                                         )
                                         if (commit.isRemote) {
                                             Surface(
-                                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
-                                                shape = MaterialTheme.shapes.extraSmall,
+                                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                                                shape = CircleShape,
                                                 modifier = Modifier.padding(start = 8.dp)
                                             ) {
-                                                Text(
-                                                    text = "Cloud",
-                                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-                                                    fontSize = 9.sp,
-                                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                                    fontWeight = FontWeight.Bold
-                                                )
+                                                Row(
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Cloud,
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(10.dp),
+                                                        tint = MaterialTheme.colorScheme.primary
+                                                    )
+                                                    Spacer(Modifier.width(4.dp))
+                                                    Text(
+                                                        text = "Cloud",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        fontSize = 8.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = MaterialTheme.colorScheme.primary
+                                                    )
+                                                }
                                             }
                                         }
                                     }

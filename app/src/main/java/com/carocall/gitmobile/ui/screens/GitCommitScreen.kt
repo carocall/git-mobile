@@ -3,9 +3,11 @@ package com.carocall.gitmobile.ui.screens
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Undo
@@ -19,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
@@ -247,7 +250,7 @@ fun GitCommitScreen(
                             Row(Modifier.fillMaxWidth().clickable { onViewDiff(repoRoot.absolutePath, "HEAD", path) }.padding(16.dp, 8.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Default.Dangerous, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp))
                                 Spacer(Modifier.width(12.dp))
-                                Text(path, fontSize = 14.sp, color = MaterialTheme.colorScheme.error, modifier = Modifier.weight(1f))
+                                Text(path, fontSize = 14.sp, color = MaterialTheme.colorScheme.error, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                         }
                     }
@@ -269,7 +272,7 @@ fun GitCommitScreen(
                         Row(Modifier.fillMaxWidth().clickable { onViewDiff(repoRoot.absolutePath, "HEAD", path) }.padding(16.dp, 4.dp), verticalAlignment = Alignment.CenterVertically) {
                             Checkbox(checked = selectedFiles.contains(path), onCheckedChange = { selectedFiles = if (it) selectedFiles + path else selectedFiles - path }, modifier = Modifier.size(40.dp))
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(path, fontSize = 14.sp)
+                                Text(path, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 val color = when (type) {
                                     "Untracked", "Added" -> Color(0xFF4CAF50)
                                     "Removed" -> Color(0xFFE91E63)
@@ -282,24 +285,115 @@ fun GitCommitScreen(
                     }
                 }
             } else {
+                // Pre-process history data: Group by date
+                val dateFormat = remember { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()) }
+                val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
+                val groupedHistory = remember(history) { history.groupBy { dateFormat.format(Date(it.time)) } }
+
                 LazyColumn(Modifier.fillMaxSize()) {
-                    items(history) { commit ->
-                        Row(Modifier.fillMaxWidth().clickable { onViewCommit(repoRoot.absolutePath, commit.id) }.padding(16.dp, 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(text = commit.message, maxLines = 1, fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.weight(1f, false))
-                                    if (commit.isRemote) {
-                                        Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = MaterialTheme.shapes.extraSmall, modifier = Modifier.padding(start = 8.dp)) {
-                                            Text(text = "Cloud", modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp), fontSize = 10.sp, color = MaterialTheme.colorScheme.onPrimaryContainer, fontWeight = FontWeight.Bold)
+                    groupedHistory.forEach { (date, commits) ->
+                        // Date header
+                        item(key = date) {
+                            Text(
+                                text = date,
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
+                            )
+                        }
+
+                        // Commits for this date
+                        itemsIndexed(commits, key = { _, c -> c.id }) { index, commit ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onViewCommit(repoRoot.absolutePath, commit.id) }
+                                    .padding(horizontal = 16.dp)
+                                    .height(IntrinsicSize.Min),
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                // Timeline Visual
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier.width(24.dp).fillMaxHeight()
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .width(1.dp)
+                                            .weight(1f)
+                                            .background(if (index == 0) Color.Transparent else MaterialTheme.colorScheme.outlineVariant)
+                                    )
+                                    Surface(
+                                        modifier = Modifier.size(8.dp),
+                                        shape = CircleShape,
+                                        color = if (commit.isRemote) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                                    ) {}
+                                    Box(
+                                        modifier = Modifier
+                                            .width(1.dp)
+                                            .weight(1f)
+                                            .background(if (index == commits.size - 1) Color.Transparent else MaterialTheme.colorScheme.outlineVariant)
+                                    )
+                                }
+
+                                // Content
+                                Column(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(start = 12.dp, bottom = 16.dp)
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = commit.message,
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            fontWeight = FontWeight.SemiBold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f, false)
+                                        )
+                                        if (commit.isRemote) {
+                                            Surface(
+                                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
+                                                shape = MaterialTheme.shapes.extraSmall,
+                                                modifier = Modifier.padding(start = 8.dp)
+                                            ) {
+                                                Text(
+                                                    text = "Cloud",
+                                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                                                    fontSize = 9.sp,
+                                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
                                         }
                                     }
+                                    Spacer(Modifier.height(2.dp))
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = commit.author,
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f, false)
+                                        )
+                                        Text(
+                                            text = " • ${timeFormat.format(Date(commit.time))}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                        )
+                                        Spacer(Modifier.weight(1f))
+                                        Text(
+                                            text = commit.id.take(7),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+                                        )
+                                    }
                                 }
-                                Spacer(Modifier.height(4.dp))
-                                Text(text = "${commit.author} • ${SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date(commit.time))}", fontSize = 12.sp, color = Color.Gray)
                             }
-                            Text(text = commit.id.take(7), fontSize = 11.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, color = Color.Gray, modifier = Modifier.padding(start = 8.dp))
                         }
-                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
                     }
                 }
             }

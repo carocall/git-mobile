@@ -202,7 +202,7 @@ fun CreateLocalTab(onConfirm: (String) -> Unit) {
 fun CloneRemoteTab(
     accounts: List<GitAccount>,
     onManageAccounts: () -> Unit,
-    onConfirm: (url: String, name: String, branch: String, accountId: String) -> Unit
+    onConfirm: (url: String, name: String, branch: String, accountId: String?) -> Unit
 ) {
     var url by remember { mutableStateOf("") }
     var name by remember { mutableStateOf("") }
@@ -270,9 +270,9 @@ fun CloneRemoteTab(
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Text(
-                        text = selectedAccount?.name ?: stringResource(R.string.select_git_account),
+                        text = selectedAccount?.name ?: stringResource(R.string.no_identity),
                         style = MaterialTheme.typography.bodyLarge,
-                        color = if (selectedAccount == null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     if (selectedAccount != null) {
                         Text(selectedAccount.username, style = MaterialTheme.typography.bodySmall)
@@ -284,12 +284,12 @@ fun CloneRemoteTab(
         
         Button(
             onClick = {
-                if (url.isNotBlank() && name.isNotBlank() && selectedAccount != null) {
-                    onConfirm(url, name, branch, selectedAccount.id)
+                if (url.isNotBlank() && name.isNotBlank()) {
+                    onConfirm(url, name, branch, selectedAccountId)
                 }
             },
             modifier = Modifier.fillMaxWidth(),
-            enabled = url.isNotBlank() && name.isNotBlank() && selectedAccount != null
+            enabled = url.isNotBlank() && name.isNotBlank()
         ) {
             Text(stringResource(R.string.start_clone))
         }

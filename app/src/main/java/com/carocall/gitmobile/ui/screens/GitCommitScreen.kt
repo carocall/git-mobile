@@ -221,86 +221,159 @@ fun GitCommitScreen(
             }
 
             if (selectedTabIndex == 0) {
-                OutlinedTextField(
-                    value = commitMessage,
-                    onValueChange = { commitMessage = it },
-                    placeholder = { Text(stringResource(R.string.commit_msg_placeholder)) },
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                    maxLines = 3,
-                    trailingIcon = {
-                        if (commitMessage.isNotBlank()) {
-                            IconButton(onClick = {
-                                scope.launch {
-                                    val name = localIdentity.first.ifBlank { globalGitName }
-                                    val email = localIdentity.second.ifBlank { globalGitEmail }
-                                    if (name.isBlank() || email.isBlank()) { showIdentityMissingDialog = true } 
-                                    else { GitManager.commit(repoRoot, commitMessage, selectedFiles.toList(), name, email).onSuccess { commitMessage = ""; selectedFiles = emptySet(); refresh() } }
-                                }
-                            }) { Icon(Icons.Default.Check, stringResource(R.string.confirm), tint = MaterialTheme.colorScheme.primary) }
+                // 提交操作区域
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(Modifier.padding(12.dp)) {
+                        OutlinedTextField(
+                            value = commitMessage,
+                            onValueChange = { commitMessage = it },
+                            placeholder = { Text(stringResource(R.string.commit_msg_placeholder)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            minLines = 2,
+                            maxLines = 5,
+                            shape = MaterialTheme.shapes.medium
+                        )
+                        
+                        Spacer(Modifier.height(12.dp))
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // 作者身份信息
+                            Row(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { showIdentityMissingDialog = true },
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.Person, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    text = if (localIdentity.first.isNotBlank()) localIdentity.first 
+                                           else globalGitName.ifBlank { stringResource(R.string.no_identity) },
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            
+                            // 提交按钮
+                            Button(
+                                onClick = {
+                                    scope.launch {
+                                        val name = localIdentity.first.ifBlank { globalGitName }
+                                        val email = localIdentity.second.ifBlank { globalGitEmail }
+                                        if (name.isBlank() || email.isBlank()) { showIdentityMissingDialog = true } 
+                                        else { GitManager.commit(repoRoot, commitMessage, selectedFiles.toList(), name, email).onSuccess { commitMessage = ""; selectedFiles = emptySet(); refresh() } }
+                                    }
+                                },
+                                enabled = commitMessage.isNotBlank() && selectedFiles.isNotEmpty(),
+                                shape = MaterialTheme.shapes.small,
+                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                            ) {
+                                Icon(Icons.Default.Check, null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text(stringResource(R.string.confirm))
+                            }
                         }
                     }
-                )
-
-                // 仓库身份信息 (显示当前谁在提交)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                        .clickable { showIdentityMissingDialog = true },
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Default.Person, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = if (localIdentity.first.isNotBlank()) "${localIdentity.first} <${localIdentity.second}>" 
-                               else if (globalGitName.isNotBlank()) "${globalGitName} <${globalGitEmail}> (Global)"
-                               else stringResource(R.string.no_identity),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
                 }
 
                 LazyColumn(Modifier.fillMaxSize()) {
+                    // 冲突项显示
                     if (status.hasConflicts) {
                         item {
-                            Text("Conflicts (${status.conflicts.size})", modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.error.copy(alpha = 0.1f)).padding(16.dp, 4.dp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.error)
+                            Surface(
+                                color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                                shape = MaterialTheme.shapes.small
+                            ) {
+                                Row(Modifier.padding(12.dp, 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Warning, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Conflicts (${status.conflicts.size})", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.error)
+                                }
+                            }
                         }
                         items(status.conflicts.toList()) { path ->
-                            Row(Modifier.fillMaxWidth().clickable { onViewDiff(repoRoot.absolutePath, "HEAD", path) }.padding(16.dp, 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Dangerous, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp))
-                                Spacer(Modifier.width(12.dp))
-                                Text(path, fontSize = 14.sp, color = MaterialTheme.colorScheme.error, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            }
+                            ListItem(
+                                headlineContent = { Text(path, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) },
+                                leadingContent = { Icon(Icons.Default.Dangerous, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp)) },
+                                modifier = Modifier.clickable { onViewDiff(repoRoot.absolutePath, "HEAD", path) }
+                            )
                         }
                     }
 
+                    // 列表头部：变更统计与操作
                     item {
-                        Row(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)).padding(16.dp, 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text(stringResource(R.string.local_changes, status.allChanges.size), modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, color = Color.Gray)
+                        Row(
+                            Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                stringResource(R.string.local_changes, status.allChanges.size),
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                             if (selectedFiles.isNotEmpty()) {
-                                IconButton(onClick = { showDiscardConfirmDialog = selectedFiles.toList() }, modifier = Modifier.size(24.dp)) { Icon(Icons.AutoMirrored.Filled.Undo, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp)) }
-                                Spacer(Modifier.width(16.dp))
+                                IconButton(onClick = { showDiscardConfirmDialog = selectedFiles.toList() }) {
+                                    Icon(Icons.AutoMirrored.Filled.Undo, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp))
+                                }
                             }
-                            if (status.allChanges.isNotEmpty()) {
+                            TextButton(onClick = {
                                 val all = selectedFiles.size == status.allChanges.size
-                                Text(if (all) stringResource(R.string.unselect_all) else stringResource(R.string.select_all), modifier = Modifier.clickable { selectedFiles = if (all) emptySet() else status.allChanges.map { it.first }.toSet() }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                selectedFiles = if (all) emptySet() else status.allChanges.map { it.first }.toSet()
+                            }) {
+                                val all = selectedFiles.size == status.allChanges.size
+                                Text(if (all) stringResource(R.string.unselect_all) else stringResource(R.string.select_all))
                             }
                         }
                     }
+                    
+                    // 变更文件列表项
                     items(status.allChanges) { (path, type) ->
-                        Row(Modifier.fillMaxWidth().clickable { onViewDiff(repoRoot.absolutePath, "HEAD", path) }.padding(16.dp, 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(checked = selectedFiles.contains(path), onCheckedChange = { selectedFiles = if (it) selectedFiles + path else selectedFiles - path }, modifier = Modifier.size(40.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(path, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                val color = when (type) {
-                                    "Untracked", "Added" -> Color(0xFF4CAF50)
-                                    "Removed" -> Color(0xFFE91E63)
-                                    else -> Color(0xFF2196F3)
-                                }
-                                Text(type, color = color, style = MaterialTheme.typography.labelSmall)
-                            }
-                            IconButton(onClick = { showDiscardConfirmDialog = listOf(path) }) { Icon(Icons.AutoMirrored.Filled.Undo, null, modifier = Modifier.size(18.dp), tint = Color.Gray) }
+                        val color = when (type) {
+                            "Untracked", "Added" -> Color(0xFF4CAF50)
+                            "Removed" -> Color(0xFFE91E63)
+                            else -> Color(0xFF2196F3)
                         }
+                        ListItem(
+                            headlineContent = { Text(path, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                            leadingContent = {
+                                Checkbox(
+                                    checked = selectedFiles.contains(path),
+                                    onCheckedChange = { selectedFiles = if (it) selectedFiles + path else selectedFiles - path }
+                                )
+                            },
+                            trailingContent = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Surface(
+                                        color = color.copy(alpha = 0.1f),
+                                        shape = MaterialTheme.shapes.extraSmall,
+                                        border = androidx.compose.foundation.BorderStroke(0.5.dp, color.copy(alpha = 0.5f))
+                                    ) {
+                                        Text(
+                                            text = type.take(1).uppercase(),
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = color,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                    IconButton(onClick = { showDiscardConfirmDialog = listOf(path) }) {
+                                        Icon(Icons.AutoMirrored.Filled.Undo, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.outline)
+                                    }
+                                }
+                            },
+                            modifier = Modifier.clickable { onViewDiff(repoRoot.absolutePath, "HEAD", path) }
+                        )
                     }
                 }
             } else {

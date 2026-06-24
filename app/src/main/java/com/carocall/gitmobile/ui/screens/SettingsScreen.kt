@@ -22,6 +22,8 @@ import androidx.navigation.NavController
 import com.carocall.gitmobile.R
 import com.carocall.gitmobile.data.model.GitAccount
 import com.carocall.gitmobile.ui.theme.ThemeMode
+import com.carocall.gitmobile.ui.util.navigateSafe
+import com.carocall.gitmobile.ui.util.popBackStackSafe
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -47,7 +49,7 @@ fun SettingsScreen(
                 title = { Text(text = stringResource(id = R.string.setting_view_title_name)) },
                 navigationIcon = {
                     IconButton(onClick = {
-                        navController.popBackStack()
+                        navController.popBackStackSafe()
                     }) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -110,7 +112,7 @@ fun SettingsScreen(
                     title = stringResource(R.string.git_accounts_title),
                     subtitle = stringResource(R.string.git_accounts_subtitle, gitAccounts.size),
                     icon = Icons.Default.Key,
-                    onClick = { navController.navigate("git_accounts") },
+                    onClick = { navController.navigateSafe("git_accounts") },
                     showDivider = false
                 )
             }

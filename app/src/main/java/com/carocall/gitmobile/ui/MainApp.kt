@@ -10,6 +10,8 @@ import com.carocall.gitmobile.data.model.GitAccount
 import com.carocall.gitmobile.data.model.RecentFile
 import com.carocall.gitmobile.ui.screens.*
 import com.carocall.gitmobile.ui.theme.ThemeMode
+import com.carocall.gitmobile.ui.util.navigateSafe
+import com.carocall.gitmobile.ui.util.popBackStackSafe
 
 import java.io.File
 import java.net.URLDecoder
@@ -74,32 +76,32 @@ fun MainApp(
                 onUpdateGlobalIdentity = onGlobalGitIdentityChange,
                 onOpenRepo = { repo ->
                     val encodedPath = URLEncoder.encode(repo.absolutePath, "UTF-8")
-                    navController.navigate("repo_explorer/$encodedPath")
+                    navController.navigateSafe("repo_explorer/$encodedPath")
                 },
                 onOpenFile = { file ->
                     val encodedPath = URLEncoder.encode(file.absolutePath, "UTF-8")
-                    navController.navigate("editor/$encodedPath")
+                    navController.navigateSafe("editor/$encodedPath")
                 },
                 onOpenSettings = {
-                    navController.navigate("settings")
+                    navController.navigateSafe("settings")
                 },
                 onManageAccounts = {
-                    navController.navigate("git_accounts")
+                    navController.navigateSafe("git_accounts")
                 },
                 onAddRepo = {
-                    navController.navigate("add_repo")
+                    navController.navigateSafe("add_repo")
                 }
             )
         }
         composable("add_repo") {
             AddRepoScreen(
                 gitAccounts = gitAccounts,
-                onBack = { navController.popBackStack() },
+                onBack = { navController.popBackStackSafe() },
                 onRepoCreated = {
-                    navController.popBackStack()
+                    navController.popBackStackSafe()
                 },
                 onManageAccounts = {
-                    navController.navigate("git_accounts")
+                    navController.navigateSafe("git_accounts")
                 }
             )
         }
@@ -121,27 +123,27 @@ fun MainApp(
                 accounts = gitAccounts,
                 onSaveAccount = onSaveGitAccount,
                 onDeleteAccount = onDeleteGitAccount,
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStackSafe() }
             )
         }
         composable("repo_explorer/{repoRootPath}") { backStackEntry ->
             val path = URLDecoder.decode(backStackEntry.arguments?.getString("repoRootPath") ?: "", "UTF-8")
             RepoExplorerScreen(
                 repoRoot = File(path),
-                onBackToRepos = { navController.popBackStack() },
+                onBackToRepos = { navController.popBackStackSafe() },
                 onOpenFile = { file ->
                     val encodedPath = URLEncoder.encode(file.absolutePath, "UTF-8")
-                    navController.navigate("editor/$encodedPath")
+                    navController.navigateSafe("editor/$encodedPath")
                 },
                 onGoToGit = { repoPath ->
                     val encodedPath = URLEncoder.encode(repoPath, "UTF-8")
-                    navController.navigate("git_commit/$encodedPath")
+                    navController.navigateSafe("git_commit/$encodedPath")
                 },
             )
         }
         composable("editor/{filePath}") { backStackEntry ->
             val path = URLDecoder.decode(backStackEntry.arguments?.getString("filePath") ?: "", "UTF-8")
-            FileEditorScreen(file = File(path), onBack = { navController.popBackStack() })
+            FileEditorScreen(file = File(path), onBack = { navController.popBackStackSafe() })
         }
         composable("git_commit/{repoPath}") { backStackEntry ->
             val path = URLDecoder.decode(backStackEntry.arguments?.getString("repoPath") ?: "", "UTF-8")
@@ -150,23 +152,23 @@ fun MainApp(
                 globalGitName = globalGitName,
                 globalGitEmail = globalGitEmail,
                 gitAccounts = gitAccounts,
-                onBack = { navController.popBackStack() },
+                onBack = { navController.popBackStackSafe() },
                 onGoToRemoteConfig = { repoPath ->
                     val encodedPath = URLEncoder.encode(repoPath, "UTF-8")
-                    navController.navigate("remote_config/$encodedPath")
+                    navController.navigateSafe("remote_config/$encodedPath")
                 },
                 onGoToBranchManagement = { repoPath ->
                     val encodedPath = URLEncoder.encode(repoPath, "UTF-8")
-                    navController.navigate("branch_management/$encodedPath")
+                    navController.navigateSafe("branch_management/$encodedPath")
                 },
                 onViewCommit = { repoPath, commitId ->
                     val encodedPath = URLEncoder.encode(repoPath, "UTF-8")
-                    navController.navigate("commit_detail/$encodedPath/$commitId")
+                    navController.navigateSafe("commit_detail/$encodedPath/$commitId")
                 },
                 onViewDiff = { repoPath, commitId, filePath ->
                     val encodedPath = URLEncoder.encode(repoPath, "UTF-8")
                     val encodedFile = URLEncoder.encode(filePath, "UTF-8")
-                    navController.navigate("diff/$encodedPath/$commitId/$encodedFile")
+                    navController.navigateSafe("diff/$encodedPath/$commitId/$encodedFile")
                 }
             )
         }
@@ -176,11 +178,11 @@ fun MainApp(
             CommitDetailScreen(
                 repoRoot = File(repoPath),
                 commitId = commitId,
-                onBack = { navController.popBackStack() },
+                onBack = { navController.popBackStackSafe() },
                 onViewDiff = { filePath ->
                     val encodedPath = URLEncoder.encode(repoPath, "UTF-8")
                     val encodedFile = URLEncoder.encode(filePath, "UTF-8")
-                    navController.navigate("diff/$encodedPath/$commitId/$encodedFile")
+                    navController.navigateSafe("diff/$encodedPath/$commitId/$encodedFile")
                 }
             )
         }
@@ -192,7 +194,7 @@ fun MainApp(
                 repoRoot = File(repoPath),
                 commitId = commitId,
                 filePath = filePath,
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStackSafe() }
             )
         }
         composable("remote_config/{repoPath}") { backStackEntry ->
@@ -201,9 +203,9 @@ fun MainApp(
                 repoRoot = File(path),
                 gitAccounts = gitAccounts,
                 onManageAccounts = {
-                    navController.navigate("git_accounts")
+                    navController.navigateSafe("git_accounts")
                 },
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStackSafe() }
             )
         }
         composable("branch_management/{repoPath}") { backStackEntry ->
@@ -211,7 +213,7 @@ fun MainApp(
             BranchManagementScreen(
                 repoRoot = File(path),
                 gitAccounts = gitAccounts,
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStackSafe() }
             )
         }
     }

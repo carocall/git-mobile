@@ -55,6 +55,10 @@ fun GitCommitScreen(
     val scope = rememberCoroutineScope()
     var status by remember { mutableStateOf(RepoStatus()) }
     var history by remember { mutableStateOf<List<CommitInfo>>(emptyList()) }
+    var historyPage by remember { mutableIntStateOf(0) }
+    var hasMoreHistory by remember { mutableStateOf(true) }
+    var isHistoryLoading by remember { mutableStateOf(false) }
+    val historyPageSize = 20
     var selectedFiles by remember { mutableStateOf(setOf<String>()) }
     var commitMessage by remember { mutableStateOf("") }
 
@@ -74,13 +78,31 @@ fun GitCommitScreen(
     fun refresh() {
         scope.launch {
             status = GitManager.getStatus(repoRoot)
-            history = GitManager.getHistory(repoRoot)
+            historyPage = 0
+            hasMoreHistory = true
+            history = GitManager.getHistory(repoRoot, skip = 0, limit = historyPageSize)
             remoteConfig = GitManager.getRemoteConfig(repoRoot)
             localIdentity = GitManager.getLocalIdentity(repoRoot)
             if (selectedFiles.isEmpty() && status.allChanges.isNotEmpty()) {
                 selectedFiles = status.allChanges.map { it.first }.toSet()
             }
             isInitialLoading = false
+        }
+    }
+
+    fun loadMoreHistory() {
+        if (isHistoryLoading || !hasMoreHistory) return
+        isHistoryLoading = true
+        scope.launch {
+            val nextPage = historyPage + 1
+            val newCommits = GitManager.getHistory(repoRoot, skip = nextPage * historyPageSize, limit = historyPageSize)
+            if (newCommits.isEmpty()) {
+                hasMoreHistory = false
+            } else {
+                history = history + newCommits
+                historyPage = nextPage
+            }
+            isHistoryLoading = false
         }
     }
 
@@ -108,7 +130,7 @@ fun GitCommitScreen(
 
             val user = account?.username ?: ""
             val savedToken = account?.token ?: ""
-            val currentToken = if (sessionToken.isBlank()) savedToken else sessionToken
+            val currentToken = sessionToken.ifBlank { savedToken }
             
             if (url.isBlank()) {
                 onGoToRemoteConfig(repoRoot.absolutePath)
@@ -406,6 +428,13 @@ fun GitCommitScreen(
 
                         // Commits for this date
                         itemsIndexed(commits, key = { _, c -> c.id }) { index, commit ->
+                            // Trigger load more when reaching the end of currently loaded history
+                            if (commit.id == history.lastOrNull()?.id && hasMoreHistory && !isHistoryLoading) {
+                                LaunchedEffect(commit.id) {
+                                    loadMoreHistory()
+                                }
+                            }
+                            
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -487,6 +516,17 @@ fun GitCommitScreen(
                                         )
                                     }
                                 }
+                            }
+                        }
+                    }
+                    
+                    if (isHistoryLoading) {
+                        item {
+                            Box(
+                                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator(modifier = Modifier.size(24.dp))
                             }
                         }
                     }

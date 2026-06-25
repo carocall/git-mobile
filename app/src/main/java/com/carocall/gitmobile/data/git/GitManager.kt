@@ -487,7 +487,7 @@ object GitManager {
         } catch (e: Exception) { null }
     }
 
-    suspend fun getHistory(repoRoot: File): List<CommitInfo> = withContext(Dispatchers.IO) {
+    suspend fun getHistory(repoRoot: File, skip: Int = 0, limit: Int = 20): List<CommitInfo> = withContext(Dispatchers.IO) {
         try {
             Git.open(repoRoot).use { git ->
                 val remoteName = getRemoteName(git)
@@ -496,7 +496,7 @@ object GitManager {
                     ?: git.repository.findRef("refs/remotes/$remoteName/master")?.objectId
                 val remoteHeadName = remoteHead?.name
 
-                val log = git.log().setMaxCount(20).call()
+                val log = git.log().setSkip(skip).setMaxCount(limit).call()
                 log.map { rev ->
                     CommitInfo(
                         id = rev.name, // 使用全量 ID

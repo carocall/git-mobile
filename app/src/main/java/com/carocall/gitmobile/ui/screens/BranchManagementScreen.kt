@@ -26,10 +26,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.carocall.gitmobile.R
+import com.carocall.gitmobile.data.git.ComposeGitProgressMonitor
 import com.carocall.gitmobile.data.git.GitManager
 import com.carocall.gitmobile.data.model.BranchInfo
 import com.carocall.gitmobile.data.model.BranchType
 import com.carocall.gitmobile.data.model.GitAccount
+import com.carocall.gitmobile.data.model.GitProgress
 import com.carocall.gitmobile.ui.component.ErrorDialog
 import com.carocall.gitmobile.ui.component.InputSheet
 import kotlinx.coroutines.launch
@@ -73,10 +75,8 @@ fun BranchManagementScreen(
                 val user = credentials.first
                 val token = credentials.second
 
-                val monitor = object : org.eclipse.jgit.lib.EmptyProgressMonitor() {
-                    override fun beginTask(title: String?, totalWork: Int) {
-                        refreshProgress = title ?: "Working..."
-                    }
+                val monitor = ComposeGitProgressMonitor { progress ->
+                    refreshProgress = progress.displayString
                 }
                 GitManager.fetch(repoRoot, user, token, progressMonitor = monitor)
                 isRefreshing = false

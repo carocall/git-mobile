@@ -16,8 +16,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.carocall.gitmobile.R
+import com.carocall.gitmobile.data.git.ComposeGitProgressMonitor
 import com.carocall.gitmobile.data.git.GitManager
 import com.carocall.gitmobile.data.model.GitAccount
+import com.carocall.gitmobile.data.model.GitProgress
 import com.carocall.gitmobile.ui.component.AccountSelectionDialog
 import com.carocall.gitmobile.ui.component.ErrorDialog
 import kotlinx.coroutines.launch
@@ -38,7 +40,7 @@ fun AddRepoScreen(
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf(stringResource(R.string.create_repo), stringResource(R.string.clone_repo))
 
-    var cloningProgress by remember { mutableStateOf<Pair<String, Float>?>(null) }
+    var cloningProgress by remember { mutableStateOf<GitProgress?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     Scaffold(
@@ -92,29 +94,8 @@ fun AddRepoScreen(
                                     val user = account?.username
                                     val token = account?.token
 
-                                    val progressMonitor = object : org.eclipse.jgit.lib.ProgressMonitor {
-                                        private var total = 0
-                                        private var completed = 0
-                                        private var taskName = ""
-
-                                        override fun start(totalTasks: Int) {}
-                                        override fun beginTask(title: String, totalWork: Int) {
-                                            taskName = title
-                                            total = totalWork
-                                            completed = 0
-                                            cloningProgress = taskName to 0f
-                                        }
-                                        override fun update(completedUnits: Int) {
-                                            completed += completedUnits
-                                            if (total > 0) {
-                                                cloningProgress = taskName to (completed.toFloat() / total)
-                                            } else {
-                                                cloningProgress = taskName to 0f
-                                            }
-                                        }
-                                        override fun endTask() {}
-                                        override fun isCancelled(): Boolean = false
-                                        override fun showDuration(enabled: Boolean) {}
+                                    val progressMonitor = ComposeGitProgressMonitor { progress ->
+                                        cloningProgress = progress
                                     }
 
                                     val result = GitManager.clone(
@@ -143,17 +124,17 @@ fun AddRepoScreen(
         }
 
         if (cloningProgress != null) {
-            val (task, progress) = cloningProgress!!
+            val progress = cloningProgress!!
             AlertDialog(
                 onDismissRequest = {},
                 title = { Text(stringResource(R.string.cloning_repo)) },
                 text = {
                     Column {
-                        Text(task)
+                        Text(progress.displayString)
                         Spacer(Modifier.height(8.dp))
-                        if (progress > 0) {
+                        if (!progress.indeterminate) {
                             LinearProgressIndicator(
-                                progress = { progress },
+                                progress = { progress.progress },
                                 modifier = Modifier.fillMaxWidth(),
                             )
                         } else {

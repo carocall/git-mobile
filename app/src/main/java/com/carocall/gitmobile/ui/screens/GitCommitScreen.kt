@@ -26,9 +26,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
 import com.carocall.gitmobile.R
+import com.carocall.gitmobile.data.git.ComposeGitProgressMonitor
 import com.carocall.gitmobile.data.git.GitManager
 import com.carocall.gitmobile.data.model.CommitInfo
 import com.carocall.gitmobile.data.model.GitAccount
+import com.carocall.gitmobile.data.model.GitProgress
 import com.carocall.gitmobile.data.model.RepoStatus
 import com.carocall.gitmobile.ui.component.ErrorDialog
 import kotlinx.coroutines.launch
@@ -58,6 +60,7 @@ fun GitCommitScreen(
 
     var sessionToken by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
+    var gitProgress by remember { mutableStateOf<GitProgress?>(null) }
     var loadingStatus by remember { mutableStateOf("") }
     var remoteConfig by remember { mutableStateOf(com.carocall.gitmobile.data.model.RemoteProfile("", "", null)) }
     var selectedTabIndex by remember { mutableIntStateOf(0) }
@@ -122,12 +125,14 @@ fun GitCommitScreen(
         scope.launch {
             isLoading = true
             loadingStatus = context.getString(R.string.pull)
-            GitManager.pull(repoRoot, user, token).onSuccess {
+            val monitor = ComposeGitProgressMonitor { gitProgress = it }
+            GitManager.pull(repoRoot, user, token, monitor).onSuccess {
                 Toast.makeText(context, context.getString(R.string.pull_success), Toast.LENGTH_SHORT).show()
                 if (token.isNotBlank()) sessionToken = token
                 refresh()
             }.onFailure { e -> errorMessage = context.getString(R.string.pull_failed, e.message) }
             isLoading = false
+            gitProgress = null
             loadingStatus = ""
         }
     }
@@ -136,12 +141,14 @@ fun GitCommitScreen(
         scope.launch {
             isLoading = true
             loadingStatus = context.getString(R.string.push)
-            GitManager.push(repoRoot, user, token).onSuccess {
+            val monitor = ComposeGitProgressMonitor { gitProgress = it }
+            GitManager.push(repoRoot, user, token, monitor).onSuccess {
                 Toast.makeText(context, context.getString(R.string.push_success), Toast.LENGTH_SHORT).show()
                 if (token.isNotBlank()) sessionToken = token
                 refresh()
             }.onFailure { e -> errorMessage = context.getString(R.string.push_failed, e.message) }
             isLoading = false
+            gitProgress = null
             loadingStatus = ""
         }
     }
@@ -150,12 +157,14 @@ fun GitCommitScreen(
         scope.launch {
             isLoading = true
             loadingStatus = context.getString(R.string.syncing)
-            GitManager.sync(repoRoot, user, token, context.getString(R.string.sync_pull_failed), context.getString(R.string.push)).onSuccess {
+            val monitor = ComposeGitProgressMonitor { gitProgress = it }
+            GitManager.sync(repoRoot, user, token, context.getString(R.string.sync_pull_failed), context.getString(R.string.push), monitor).onSuccess {
                 Toast.makeText(context, context.getString(R.string.sync_success), Toast.LENGTH_SHORT).show()
                 if (token.isNotBlank()) sessionToken = token
                 refresh()
             }.onFailure { e -> errorMessage = context.getString(R.string.sync_failed, e.message) }
             isLoading = false
+            gitProgress = null
             loadingStatus = ""
         }
     }
@@ -522,7 +531,34 @@ fun GitCommitScreen(
         }
 
         if (isLoading) {
-            AlertDialog(onDismissRequest = {}, confirmButton = {}, text = { Row(verticalAlignment = Alignment.CenterVertically) { CircularProgressIndicator(); Spacer(Modifier.width(16.dp)); Text(loadingStatus.ifBlank { stringResource(R.string.syncing) }) } })
+            AlertDialog(
+                onDismissRequest = {},
+                confirmButton = {},
+                text = {
+                    Column(Modifier.fillMaxWidth()) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(16.dp))
+                            Text(loadingStatus.ifBlank { stringResource(R.string.syncing) })
+                        }
+                        gitProgress?.let { progress ->
+                            if (progress.taskName.isNotBlank()) {
+                                Spacer(Modifier.height(16.dp))
+                                Text(progress.displayString, style = MaterialTheme.typography.bodySmall)
+                                Spacer(Modifier.height(8.dp))
+                                if (!progress.indeterminate) {
+                                    LinearProgressIndicator(
+                                        progress = { progress.progress },
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                } else {
+                                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                                }
+                            }
+                        }
+                    }
+                }
+            )
         }
         errorMessage?.let { ErrorDialog(error = it, onDismiss = { errorMessage = null }) }
     }

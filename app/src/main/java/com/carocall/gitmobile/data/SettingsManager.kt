@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.carocall.gitmobile.data.model.GitAccount
+import com.carocall.gitmobile.data.model.LocalRepo
 import com.carocall.gitmobile.data.model.RecentFile
 import com.carocall.gitmobile.ui.screens.RepoSortOrder
 import com.carocall.gitmobile.ui.theme.ThemeMode
@@ -32,6 +33,73 @@ class SettingsManager(private val context: Context) {
         private val GLOBAL_GIT_EMAIL_KEY = stringPreferencesKey("global_git_email")
         private val GIT_ACCOUNTS_KEY = stringPreferencesKey("git_accounts")
         private val RECENT_FILES_KEY = stringPreferencesKey("recent_files")
+        private val LOCAL_REPOS_KEY = stringPreferencesKey("local_repos")
+    }
+
+    val localReposFlow: Flow<List<LocalRepo>> = context.dataStore.data
+        .map { preferences ->
+            val json = preferences[LOCAL_REPOS_KEY] ?: "[]"
+            parseLocalRepos(json)
+        }
+
+    suspend fun saveLocalRepos(repos: List<LocalRepo>) {
+        context.dataStore.edit { preferences ->
+            preferences[LOCAL_REPOS_KEY] = serializeLocalRepos(repos)
+        }
+    }
+
+    suspend fun updateLocalRepo(repo: LocalRepo) {
+        context.dataStore.edit { preferences ->
+            val repos = parseLocalRepos(preferences[LOCAL_REPOS_KEY] ?: "[]").toMutableList()
+            val index = repos.indexOfFirst { it.path == repo.path }
+            if (index != -1) {
+                repos[index] = repo
+            } else {
+                repos.add(repo)
+            }
+            preferences[LOCAL_REPOS_KEY] = serializeLocalRepos(repos)
+        }
+    }
+
+    suspend fun deleteLocalRepo(path: String) {
+        context.dataStore.edit { preferences ->
+            val repos = parseLocalRepos(preferences[LOCAL_REPOS_KEY] ?: "[]").filter { it.path != path }
+            preferences[LOCAL_REPOS_KEY] = serializeLocalRepos(repos)
+        }
+    }
+
+    private fun parseLocalRepos(json: String): List<LocalRepo> {
+        return try {
+            val list = mutableListOf<LocalRepo>()
+            val array = JSONArray(json)
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                list.add(LocalRepo(
+                    path = obj.getString("path"),
+                    name = obj.getString("name"),
+                    alias = obj.optString("alias", ""),
+                    lastOpened = obj.optLong("lastOpened", 0L),
+                    isStarred = obj.optBoolean("isStarred", false)
+                ))
+            }
+            list
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    private fun serializeLocalRepos(repos: List<LocalRepo>): String {
+        val array = JSONArray()
+        repos.forEach { repo ->
+            val obj = JSONObject()
+            obj.put("path", repo.path)
+            obj.put("name", repo.name)
+            obj.put("alias", repo.alias)
+            obj.put("lastOpened", repo.lastOpened)
+            obj.put("isStarred", repo.isStarred)
+            array.put(obj)
+        }
+        return array.toString()
     }
 
     val recentFilesFlow: Flow<List<RecentFile>> = context.dataStore.data

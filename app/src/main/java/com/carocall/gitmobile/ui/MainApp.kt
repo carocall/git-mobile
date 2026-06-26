@@ -7,6 +7,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.carocall.gitmobile.data.model.GitAccount
+import com.carocall.gitmobile.data.model.LocalRepo
 import com.carocall.gitmobile.data.model.RecentFile
 import com.carocall.gitmobile.ui.screens.*
 import com.carocall.gitmobile.ui.theme.ThemeMode
@@ -30,13 +31,16 @@ fun MainApp(
     onGlobalGitIdentityChange: (String, String) -> Unit,
     gitAccounts: List<GitAccount>,
     recentFiles: List<RecentFile>,
+    localRepos: List<LocalRepo>,
     onSaveGitAccount: (GitAccount) -> Unit,
-    onDeleteGitAccount: (String) -> Unit
+    onDeleteGitAccount: (String) -> Unit,
+    onUpdateRepo: (LocalRepo) -> Unit,
+    onDeleteRepo: (String) -> Unit
 ) {
     val navController = rememberNavController()
     NavHost(
         navController = navController,
-        startDestination = "repo_list",
+        startDestination = "home",
         // 1. 进入新页面：从右侧滑入
         enterTransition = {
             slideIntoContainer(
@@ -66,16 +70,17 @@ fun MainApp(
             )
         }
     ) {
-        composable("repo_list") {
+        composable("home") {
             HomeScreen(
-                sortOrder = sortOrder,
+                localRepos = localRepos,
                 gitAccounts = gitAccounts,
                 recentFiles = recentFiles,
                 globalGitName = globalGitName,
                 globalGitEmail = globalGitEmail,
                 onUpdateGlobalIdentity = onGlobalGitIdentityChange,
                 onOpenRepo = { repo ->
-                    val encodedPath = URLEncoder.encode(repo.absolutePath, "UTF-8")
+                    onUpdateRepo(repo.copy(lastOpened = System.currentTimeMillis()))
+                    val encodedPath = URLEncoder.encode(repo.path, "UTF-8")
                     navController.navigateSafe("repo_explorer/$encodedPath")
                 },
                 onOpenFile = { file ->
@@ -90,14 +95,33 @@ fun MainApp(
                 },
                 onAddRepo = {
                     navController.navigateSafe("add_repo")
-                }
+                },
+                onViewAllRepos = {
+                    navController.navigateSafe("repo_list")
+                },
+                onUpdateRepo = onUpdateRepo,
+                onDeleteRepo = onDeleteRepo
+            )
+        }
+        composable("repo_list") {
+            RepoListScreen(
+                repos = localRepos,
+                onBack = { navController.popBackStackSafe() },
+                onOpenRepo = { repo ->
+                    onUpdateRepo(repo.copy(lastOpened = System.currentTimeMillis()))
+                    val encodedPath = URLEncoder.encode(repo.path, "UTF-8")
+                    navController.navigateSafe("repo_explorer/$encodedPath")
+                },
+                onUpdateRepo = onUpdateRepo,
+                onDeleteRepo = onDeleteRepo
             )
         }
         composable("add_repo") {
             AddRepoScreen(
                 gitAccounts = gitAccounts,
                 onBack = { navController.popBackStackSafe() },
-                onRepoCreated = {
+                onRepoCreated = { repoFile ->
+                    onUpdateRepo(LocalRepo(path = repoFile.absolutePath, name = repoFile.name))
                     navController.popBackStackSafe()
                 },
                 onManageAccounts = {

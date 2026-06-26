@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -20,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import com.carocall.gitmobile.R
 import com.carocall.gitmobile.data.model.GitAccount
+import com.carocall.gitmobile.data.model.LocalRepo
 import com.carocall.gitmobile.data.model.RecentFile
 import com.carocall.gitmobile.ui.component.IdentityDialog
 import com.carocall.gitmobile.ui.component.InputSheet
@@ -35,43 +37,31 @@ enum class RepoSortOrder { NAME, TIME }
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
-    sortOrder: RepoSortOrder,
+    localRepos: List<LocalRepo>,
     gitAccounts: List<GitAccount>,
     recentFiles: List<RecentFile>,
     globalGitName: String,
     globalGitEmail: String,
     onUpdateGlobalIdentity: (String, String) -> Unit,
-    onOpenRepo: (File) -> Unit,
+    onOpenRepo: (LocalRepo) -> Unit,
     onOpenFile: (File) -> Unit,
     onOpenSettings: () -> Unit,
     onManageAccounts: () -> Unit,
-    onAddRepo: () -> Unit
+    onAddRepo: () -> Unit,
+    onViewAllRepos: () -> Unit,
+    onUpdateRepo: (LocalRepo) -> Unit,
+    onDeleteRepo: (String) -> Unit
 ) {
     val context = LocalContext.current
-    val rootDir = remember { context.filesDir }
     
-    var repos by remember { mutableStateOf(emptyList<File>()) }
-    var showRenameDialog by remember { mutableStateOf<File?>(null) }
-    var showDeleteConfirm by remember { mutableStateOf<File?>(null) }
+    var showRenameDialog by remember { mutableStateOf<LocalRepo?>(null) }
+    var showDeleteConfirm by remember { mutableStateOf<LocalRepo?>(null) }
     var showIdentityDialog by remember { mutableStateOf(false) }
-    var searchQuery by remember { mutableStateOf("") }
 
-    val filteredRepos = remember(repos, searchQuery) {
-        if (searchQuery.isBlank()) repos
-        else repos.filter { it.name.contains(searchQuery, ignoreCase = true) }
+    // On Home screen, we only show a few repos (e.g. 4 or 6)
+    val displayRepos = remember(localRepos) {
+        localRepos.sortedByDescending { it.lastOpened }.take(6)
     }
-
-    fun refreshRepos() {
-        val list = rootDir.listFiles()?.filter { 
-            it.isDirectory && File(it, ".git").exists() 
-        } ?: emptyList()
-        repos = when (sortOrder) {
-            RepoSortOrder.TIME -> list.sortedByDescending { it.lastModified() }
-            RepoSortOrder.NAME -> list.sortedBy { it.name.lowercase() }
-        }
-    }
-
-    LaunchedEffect(sortOrder) { refreshRepos() }
 
     Scaffold(
         topBar = {
@@ -131,19 +121,13 @@ fun HomeScreen(
 
             // 2. 搜索框
             item {
+                var searchQuery by remember { mutableStateOf("") }
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
                     modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                     placeholder = { Text(stringResource(R.string.search_repositories)) },
                     leadingIcon = { Icon(Icons.Default.Search, null) },
-                    trailingIcon = if (searchQuery.isNotEmpty()) {
-                        {
-                            IconButton(onClick = { searchQuery = "" }) {
-                                Icon(Icons.Default.Close, null)
-                            }
-                        }
-                    } else null,
                     shape = MaterialTheme.shapes.medium,
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
@@ -210,17 +194,26 @@ fun HomeScreen(
                 }
             }
 
-            // 2. 仓库列表标题
+            // 4. 仓库列表标题
             item {
-                Text(
-                    text = stringResource(R.string.workspace_title),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(bottom = 4.dp)
-                )
+                Row(
+                    Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = stringResource(R.string.workspace_title),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    TextButton(onClick = onViewAllRepos) {
+                        Text(stringResource(R.string.view_all_repos))
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, Modifier.size(16.dp))
+                    }
+                }
             }
 
-            if (filteredRepos.isEmpty()) {
+            if (displayRepos.isEmpty()) {
                 item {
                     Box(
                         Modifier
@@ -236,51 +229,24 @@ fun HomeScreen(
                     }
                 }
             } else {
-                items(filteredRepos) { repo ->
-                    ElevatedCard(
-                        onClick = { onOpenRepo(repo) },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = MaterialTheme.shapes.medium,
-                        colors = CardDefaults.elevatedCardColors(
-                            containerColor = MaterialTheme.colorScheme.surface
-                        )
-                    ) {
+                // 两列网格布局
+                val rows = displayRepos.chunked(2)
+                rows.forEach { rowItems ->
+                    item {
                         Row(
-                            Modifier.padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Column(Modifier.weight(1f)) {
-                                Text(
-                                    repo.name,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    stringResource(R.string.last_modified_label, SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date(repo.lastModified()))),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = Color.Gray,
-                                    maxLines = 1
+                            rowItems.forEach { repo ->
+                                RepoGridItem(
+                                    repo = repo,
+                                    onClick = { onOpenRepo(repo) },
+                                    onMenuClick = { /* Can show menu or just rely on full list for management */ },
+                                    modifier = Modifier.weight(1f)
                                 )
                             }
-
-                            var menuExpanded by remember { mutableStateOf(false) }
-                            Box {
-                                IconButton(onClick = { menuExpanded = true }) { Icon(Icons.Default.MoreVert, null, tint = Color.Gray) }
-                                DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.rename_project)) },
-                                        onClick = { menuExpanded = false; showRenameDialog = repo },
-                                        leadingIcon = { Icon(Icons.Default.Edit, null) }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.remove_project), color = MaterialTheme.colorScheme.error) },
-                                        onClick = {
-                                            menuExpanded = false
-                                            showDeleteConfirm = repo
-                                        },
-                                        leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) }
-                                    )
-                                }
+                            if (rowItems.size == 1) {
+                                Spacer(Modifier.weight(1f))
                             }
                         }
                     }
@@ -290,14 +256,9 @@ fun HomeScreen(
 
         if (showRenameDialog != null) {
             val repo = showRenameDialog!!
-            InputSheet(title = stringResource(R.string.rename_project_title), initialValue = repo.name, onDismiss = { showRenameDialog = null }, onConfirm = { newName ->
-                val dest = File(repo.parentFile, newName)
-                if (repo.renameTo(dest)) {
-                    refreshRepos()
-                    showRenameDialog = null
-                } else {
-                    Toast.makeText(context, context.getString(R.string.rename_failed), Toast.LENGTH_SHORT).show()
-                }
+            InputSheet(title = stringResource(R.string.rename_project_title), initialValue = repo.displayName, onDismiss = { showRenameDialog = null }, onConfirm = { newName ->
+                onUpdateRepo(repo.copy(alias = newName))
+                showRenameDialog = null
             })
         }
 
@@ -305,12 +266,11 @@ fun HomeScreen(
             AlertDialog(
                 onDismissRequest = { showDeleteConfirm = null },
                 title = { Text(stringResource(R.string.confirm_delete_title)) },
-                text = { Text(stringResource(R.string.confirm_delete_msg, showDeleteConfirm?.name ?: "")) },
+                text = { Text(stringResource(R.string.confirm_delete_msg, showDeleteConfirm?.displayName ?: "")) },
                 confirmButton = {
                     Button(
                         onClick = {
-                            showDeleteConfirm?.deleteRecursively()
-                            refreshRepos()
+                            onDeleteRepo(showDeleteConfirm?.path ?: "")
                             showDeleteConfirm = null
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
@@ -368,6 +328,69 @@ fun QuickActionItem(
                 fontWeight = FontWeight.Bold,
                 maxLines = 1
             )
+        }
+    }
+}
+
+@Composable
+fun RepoGridItem(
+    repo: LocalRepo,
+    onClick: () -> Unit,
+    onMenuClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val dateFormat = remember { SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()) }
+    
+    ElevatedCard(
+        onClick = onClick,
+        modifier = modifier.height(110.dp),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
+    ) {
+        Box(Modifier.fillMaxSize()) {
+            Column(
+                Modifier
+                    .padding(12.dp)
+                    .align(Alignment.TopStart)
+            ) {
+                Text(
+                    text = repo.displayName,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1
+                )
+                
+                if (repo.alias.isNotBlank()) {
+                    Text(
+                        text = repo.name,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1
+                    )
+                }
+
+                Spacer(Modifier.weight(1f))
+                
+                Text(
+                    text = dateFormat.format(Date(repo.lastOpened)),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.Gray
+                )
+            }
+            
+            if (repo.isStarred) {
+                Icon(
+                    imageVector = Icons.Default.Star,
+                    contentDescription = null,
+                    tint = Color(0xFFFFB300),
+                    modifier = Modifier
+                        .padding(8.dp)
+                        .size(18.dp)
+                        .align(Alignment.TopEnd)
+                )
+            }
         }
     }
 }

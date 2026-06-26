@@ -30,7 +30,7 @@ import java.io.File
 fun AddRepoScreen(
     gitAccounts: List<GitAccount>,
     onBack: () -> Unit,
-    onRepoCreated: () -> Unit,
+    onRepoCreated: (File) -> Unit,
     onManageAccounts: () -> Unit
 ) {
     val context = LocalContext.current
@@ -76,7 +76,7 @@ fun AddRepoScreen(
                             } else if (f.mkdirs()) {
                                 scope.launch {
                                     GitManager.initRepo(f)
-                                    onRepoCreated()
+                                    onRepoCreated(f)
                                 }
                             }
                         }
@@ -111,7 +111,7 @@ fun AddRepoScreen(
                                     cloningProgress = null
                                     if (result.isSuccess) {
                                         Toast.makeText(context, context.getString(R.string.clone_success), Toast.LENGTH_SHORT).show()
-                                        onRepoCreated()
+                                        onRepoCreated(f)
                                     } else {
                                         errorMessage = context.getString(R.string.clone_failed, result.exceptionOrNull()?.message)
                                     }

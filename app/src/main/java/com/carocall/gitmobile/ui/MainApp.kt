@@ -67,7 +67,7 @@ fun MainApp(
         }
     ) {
         composable("repo_list") {
-            RepoListScreen(
+            HomeScreen(
                 sortOrder = sortOrder,
                 gitAccounts = gitAccounts,
                 recentFiles = recentFiles,

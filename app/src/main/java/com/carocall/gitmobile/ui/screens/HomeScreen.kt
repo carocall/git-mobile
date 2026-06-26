@@ -34,7 +34,7 @@ enum class RepoSortOrder { NAME, TIME }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RepoListScreen(
+fun HomeScreen(
     sortOrder: RepoSortOrder,
     gitAccounts: List<GitAccount>,
     recentFiles: List<RecentFile>,

@@ -173,4 +173,5 @@
     <string name="signed_in_as">Signed in as %s</string>
     <string name="identity_not_configured">Global identity not configured</string>
     <string name="search_repositories">Search repositories...</string>
+    <string name="file_not_found">File not found or deleted</string>
 </resources>

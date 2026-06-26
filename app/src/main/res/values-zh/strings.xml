@@ -173,4 +173,5 @@
     <string name="signed_in_as">已登录为 %s</string>
     <string name="identity_not_configured">未配置全局身份信息</string>
     <string name="search_repositories">搜索仓库...</string>
+    <string name="file_not_found">文件未找到或已被删除</string>
 </resources>

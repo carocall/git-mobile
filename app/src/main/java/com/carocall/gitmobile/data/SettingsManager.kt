@@ -68,6 +68,17 @@ class SettingsManager(private val context: Context) {
         }
     }
 
+    suspend fun renameLocalRepo(oldPath: String, newRepo: LocalRepo) {
+        context.dataStore.edit { preferences ->
+            val repos = parseLocalRepos(preferences[LOCAL_REPOS_KEY] ?: "[]").toMutableList()
+            val index = repos.indexOfFirst { it.path == oldPath }
+            if (index != -1) {
+                repos[index] = newRepo
+            }
+            preferences[LOCAL_REPOS_KEY] = serializeLocalRepos(repos)
+        }
+    }
+
     private fun parseLocalRepos(json: String): List<LocalRepo> {
         return try {
             val list = mutableListOf<LocalRepo>()

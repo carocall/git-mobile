@@ -176,8 +176,10 @@
     <string name="file_not_found">File not found or deleted</string>
     <string name="view_all_repos">View All</string>
     <string name="repo_list_title">All Repositories</string>
-    <string name="rename_repo">Rename Repo</string>
-    <string name="repo_alias">Repository Alias</string>
+    <string name="rename_folder">Rename Folder</string>
+    <string name="rename_repo">Set Alias</string>
+    <string name="repo_alias">Repository Alias (Optional)</string>
+    <string name="repo_alias_label">Alias</string>
     <string name="star_repo">Star</string>
     <string name="unstar_repo">Unstar</string>
 </resources>

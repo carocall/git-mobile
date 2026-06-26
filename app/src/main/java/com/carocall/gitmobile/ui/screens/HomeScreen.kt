@@ -1,7 +1,9 @@
 package com.carocall.gitmobile.ui.screens
 
 import android.widget.Toast
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -50,11 +52,13 @@ fun HomeScreen(
     onAddRepo: () -> Unit,
     onViewAllRepos: () -> Unit,
     onUpdateRepo: (LocalRepo) -> Unit,
-    onDeleteRepo: (String) -> Unit
+    onDeleteRepo: (String) -> Unit,
+    onRenameFolder: (String, String) -> Unit
 ) {
     val context = LocalContext.current
     
     var showRenameDialog by remember { mutableStateOf<LocalRepo?>(null) }
+    var showRenameFolderDialog by remember { mutableStateOf<LocalRepo?>(null) }
     var showDeleteConfirm by remember { mutableStateOf<LocalRepo?>(null) }
     var showIdentityDialog by remember { mutableStateOf(false) }
 
@@ -241,7 +245,9 @@ fun HomeScreen(
                                 RepoGridItem(
                                     repo = repo,
                                     onClick = { onOpenRepo(repo) },
-                                    onMenuClick = { /* Can show menu or just rely on full list for management */ },
+                                    onUpdateRepo = onUpdateRepo,
+                                    onSetAlias = { showRenameDialog = repo },
+                                    onRenameFolder = { showRenameFolderDialog = repo },
                                     modifier = Modifier.weight(1f)
                                 )
                             }
@@ -256,9 +262,17 @@ fun HomeScreen(
 
         if (showRenameDialog != null) {
             val repo = showRenameDialog!!
-            InputSheet(title = stringResource(R.string.rename_project_title), initialValue = repo.displayName, onDismiss = { showRenameDialog = null }, onConfirm = { newName ->
+            InputSheet(title = stringResource(R.string.rename_repo), initialValue = repo.alias, onDismiss = { showRenameDialog = null }, onConfirm = { newName ->
                 onUpdateRepo(repo.copy(alias = newName))
                 showRenameDialog = null
+            })
+        }
+
+        if (showRenameFolderDialog != null) {
+            val repo = showRenameFolderDialog!!
+            InputSheet(title = stringResource(R.string.rename_folder), initialValue = repo.name, onDismiss = { showRenameFolderDialog = null }, onConfirm = { newName ->
+                onRenameFolder(repo.path, newName)
+                showRenameFolderDialog = null
             })
         }
 
@@ -332,18 +346,26 @@ fun QuickActionItem(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun RepoGridItem(
     repo: LocalRepo,
     onClick: () -> Unit,
-    onMenuClick: () -> Unit,
+    onUpdateRepo: (LocalRepo) -> Unit,
+    onSetAlias: () -> Unit,
+    onRenameFolder: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val dateFormat = remember { SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()) }
-    
+    var menuExpanded by remember { mutableStateOf(false) }
+
     ElevatedCard(
-        onClick = onClick,
-        modifier = modifier.height(110.dp),
+        modifier = modifier
+            .height(75.dp)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = { menuExpanded = true }
+            ),
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.elevatedCardColors(
             containerColor = MaterialTheme.colorScheme.surface
@@ -352,12 +374,12 @@ fun RepoGridItem(
         Box(Modifier.fillMaxSize()) {
             Column(
                 Modifier
-                    .padding(12.dp)
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
                     .align(Alignment.TopStart)
             ) {
                 Text(
                     text = repo.displayName,
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1
                 )
@@ -365,7 +387,7 @@ fun RepoGridItem(
                 if (repo.alias.isNotBlank()) {
                     Text(
                         text = repo.name,
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1
                     )
@@ -376,7 +398,7 @@ fun RepoGridItem(
                 Text(
                     text = dateFormat.format(Date(repo.lastOpened)),
                     style = MaterialTheme.typography.labelSmall,
-                    color = Color.Gray
+                    color = Color.Gray.copy(alpha = 0.8f)
                 )
             }
             
@@ -389,6 +411,36 @@ fun RepoGridItem(
                         .padding(8.dp)
                         .size(18.dp)
                         .align(Alignment.TopEnd)
+                )
+            }
+
+            DropdownMenu(
+                expanded = menuExpanded,
+                onDismissRequest = { menuExpanded = false }
+            ) {
+                DropdownMenuItem(
+                    text = { Text(if (repo.isStarred) stringResource(R.string.unstar_repo) else stringResource(R.string.star_repo)) },
+                    onClick = {
+                        menuExpanded = false
+                        onUpdateRepo(repo.copy(isStarred = !repo.isStarred))
+                    },
+                    leadingIcon = { Icon(if (repo.isStarred) Icons.Default.StarOutline else Icons.Default.Star, null) }
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.rename_repo)) },
+                    onClick = {
+                        menuExpanded = false
+                        onSetAlias()
+                    },
+                    leadingIcon = { Icon(Icons.Default.Edit, null) }
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.rename_folder)) },
+                    onClick = {
+                        menuExpanded = false
+                        onRenameFolder()
+                    },
+                    leadingIcon = { Icon(Icons.Default.DriveFileRenameOutline, null) }
                 )
             }
         }

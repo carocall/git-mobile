@@ -30,7 +30,7 @@ import java.io.File
 fun AddRepoScreen(
     gitAccounts: List<GitAccount>,
     onBack: () -> Unit,
-    onRepoCreated: (File) -> Unit,
+    onRepoCreated: (File, String) -> Unit,
     onManageAccounts: () -> Unit
 ) {
     val context = LocalContext.current
@@ -69,14 +69,14 @@ fun AddRepoScreen(
             Box(Modifier.fillMaxSize()) {
                 when (selectedTab) {
                     0 -> CreateLocalTab(
-                        onConfirm = { name ->
+                        onConfirm = { name, alias ->
                             val f = File(rootDir, name)
                             if (f.exists()) {
                                 Toast.makeText(context, context.getString(R.string.dir_already_exists), Toast.LENGTH_SHORT).show()
                             } else if (f.mkdirs()) {
                                 scope.launch {
                                     GitManager.initRepo(f)
-                                    onRepoCreated(f)
+                                    onRepoCreated(f, alias)
                                 }
                             }
                         }
@@ -84,7 +84,7 @@ fun AddRepoScreen(
                     1 -> CloneRemoteTab(
                         accounts = gitAccounts,
                         onManageAccounts = onManageAccounts,
-                        onConfirm = { url, name, branch, accountId ->
+                        onConfirm = { url, name, branch, accountId, alias ->
                             val f = File(rootDir, name)
                             if (f.exists()) {
                                 Toast.makeText(context, context.getString(R.string.dir_already_exists), Toast.LENGTH_SHORT).show()
@@ -111,7 +111,7 @@ fun AddRepoScreen(
                                     cloningProgress = null
                                     if (result.isSuccess) {
                                         Toast.makeText(context, context.getString(R.string.clone_success), Toast.LENGTH_SHORT).show()
-                                        onRepoCreated(f)
+                                        onRepoCreated(f, alias)
                                     } else {
                                         errorMessage = context.getString(R.string.clone_failed, result.exceptionOrNull()?.message)
                                     }
@@ -122,6 +122,7 @@ fun AddRepoScreen(
                 }
             }
         }
+// ... (rest of the code needs update too)
 
         if (cloningProgress != null) {
             val progress = cloningProgress!!
@@ -151,8 +152,9 @@ fun AddRepoScreen(
 }
 
 @Composable
-fun CreateLocalTab(onConfirm: (String) -> Unit) {
+fun CreateLocalTab(onConfirm: (String, String) -> Unit) {
     var name by remember { mutableStateOf("") }
+    var alias by remember { mutableStateOf("") }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -168,8 +170,15 @@ fun CreateLocalTab(onConfirm: (String) -> Unit) {
             modifier = Modifier.fillMaxWidth(),
             singleLine = true
         )
+        OutlinedTextField(
+            value = alias,
+            onValueChange = { alias = it },
+            label = { Text(stringResource(R.string.repo_alias)) },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
+        )
         Button(
-            onClick = { onConfirm(name) },
+            onClick = { onConfirm(name, alias) },
             modifier = Modifier.fillMaxWidth(),
             enabled = name.isNotBlank()
         ) {
@@ -183,10 +192,11 @@ fun CreateLocalTab(onConfirm: (String) -> Unit) {
 fun CloneRemoteTab(
     accounts: List<GitAccount>,
     onManageAccounts: () -> Unit,
-    onConfirm: (url: String, name: String, branch: String, accountId: String?) -> Unit
+    onConfirm: (url: String, name: String, branch: String, accountId: String?, alias: String) -> Unit
 ) {
     var url by remember { mutableStateOf("") }
     var name by remember { mutableStateOf("") }
+    var alias by remember { mutableStateOf("") }
     var branch by remember { mutableStateOf("") }
     var selectedAccountId by remember { mutableStateOf<String?>(null) }
     var showAccountSelector by remember { mutableStateOf(false) }
@@ -230,6 +240,14 @@ fun CloneRemoteTab(
         )
         
         OutlinedTextField(
+            value = alias,
+            onValueChange = { alias = it },
+            label = { Text(stringResource(R.string.repo_alias)) },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
+        )
+        
+        OutlinedTextField(
             value = branch,
             onValueChange = { branch = it },
             label = { Text(stringResource(R.string.branch_name_optional)) },
@@ -266,7 +284,7 @@ fun CloneRemoteTab(
         Button(
             onClick = {
                 if (url.isNotBlank() && name.isNotBlank()) {
-                    onConfirm(url, name, branch, selectedAccountId)
+                    onConfirm(url, name, branch, selectedAccountId, alias)
                 }
             },
             modifier = Modifier.fillMaxWidth(),

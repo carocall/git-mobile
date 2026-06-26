@@ -11,6 +11,7 @@ import com.carocall.gitmobile.ui.MainApp
 import com.carocall.gitmobile.ui.screens.RepoSortOrder
 import com.carocall.gitmobile.ui.theme.GitMobileTheme
 import com.carocall.gitmobile.ui.theme.ThemeMode
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -30,8 +31,9 @@ class MainActivity : ComponentActivity() {
             val scope = rememberCoroutineScope()
 
             LaunchedEffect(Unit) {
-                // Migration: Scan if empty
-                if (localRepos.isEmpty()) {
+                // 修复迁移逻辑：只有当 Flow 的第一个值确实为空时才扫描
+                val currentRepos = settingsManager.localReposFlow.first()
+                if (currentRepos.isEmpty()) {
                     val rootDir = filesDir
                     val discovered = rootDir.listFiles()?.filter {
                         it.isDirectory && File(it, ".git").exists()
@@ -77,6 +79,23 @@ class MainActivity : ComponentActivity() {
                             // Optionally delete the physical folder too? 
                             // The user's original code did: showDeleteConfirm?.deleteRecursively()
                             File(path).deleteRecursively()
+                        }
+                    },
+                    onRenameRepoFolder = { oldPath, newName ->
+                        scope.launch {
+                            val oldFile = File(oldPath)
+                            val newFile = File(oldFile.parentFile, newName)
+                            if (oldFile.renameTo(newFile)) {
+                                val repos = settingsManager.localReposFlow.first()
+                                val oldRepo = repos.find { it.path == oldPath }
+                                if (oldRepo != null) {
+                                    val newRepo = oldRepo.copy(
+                                        path = newFile.absolutePath,
+                                        name = newFile.name
+                                    )
+                                    settingsManager.renameLocalRepo(oldPath, newRepo)
+                                }
+                            }
                         }
                     }
                 )

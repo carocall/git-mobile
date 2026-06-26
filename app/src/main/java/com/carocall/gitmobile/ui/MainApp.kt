@@ -35,7 +35,8 @@ fun MainApp(
     onSaveGitAccount: (GitAccount) -> Unit,
     onDeleteGitAccount: (String) -> Unit,
     onUpdateRepo: (LocalRepo) -> Unit,
-    onDeleteRepo: (String) -> Unit
+    onDeleteRepo: (String) -> Unit,
+    onRenameRepoFolder: (String, String) -> Unit
 ) {
     val navController = rememberNavController()
     NavHost(
@@ -100,7 +101,8 @@ fun MainApp(
                     navController.navigateSafe("repo_list")
                 },
                 onUpdateRepo = onUpdateRepo,
-                onDeleteRepo = onDeleteRepo
+                onDeleteRepo = onDeleteRepo,
+                onRenameFolder = onRenameRepoFolder
             )
         }
         composable("repo_list") {
@@ -113,15 +115,16 @@ fun MainApp(
                     navController.navigateSafe("repo_explorer/$encodedPath")
                 },
                 onUpdateRepo = onUpdateRepo,
-                onDeleteRepo = onDeleteRepo
+                onDeleteRepo = onDeleteRepo,
+                onRenameFolder = onRenameRepoFolder
             )
         }
         composable("add_repo") {
             AddRepoScreen(
                 gitAccounts = gitAccounts,
                 onBack = { navController.popBackStackSafe() },
-                onRepoCreated = { repoFile ->
-                    onUpdateRepo(LocalRepo(path = repoFile.absolutePath, name = repoFile.name))
+                onRepoCreated = { repoFile, alias ->
+                    onUpdateRepo(LocalRepo(path = repoFile.absolutePath, name = repoFile.name, alias = alias))
                     navController.popBackStackSafe()
                 },
                 onManageAccounts = {

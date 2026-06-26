@@ -176,8 +176,10 @@
     <string name="file_not_found">文件未找到或已被删除</string>
     <string name="view_all_repos">查看所有</string>
     <string name="repo_list_title">所有仓库</string>
-    <string name="rename_repo">重命名仓库</string>
-    <string name="repo_alias">仓库别名</string>
+    <string name="rename_folder">重命名文件夹</string>
+    <string name="rename_repo">设置别名</string>
+    <string name="repo_alias">仓库别名（可选）</string>
+    <string name="repo_alias_label">别名</string>
     <string name="star_repo">收藏</string>
     <string name="unstar_repo">取消收藏</string>
 </resources>

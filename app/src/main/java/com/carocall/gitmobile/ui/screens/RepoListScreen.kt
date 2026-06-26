@@ -28,10 +28,12 @@ fun RepoListScreen(
     onBack: () -> Unit,
     onOpenRepo: (LocalRepo) -> Unit,
     onUpdateRepo: (LocalRepo) -> Unit,
-    onDeleteRepo: (String) -> Unit
+    onDeleteRepo: (String) -> Unit,
+    onRenameFolder: (String, String) -> Unit
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var showRenameDialog by remember { mutableStateOf<LocalRepo?>(null) }
+    var showRenameFolderDialog by remember { mutableStateOf<LocalRepo?>(null) }
     var showDeleteConfirm by remember { mutableStateOf<LocalRepo?>(null) }
 
     val filteredRepos = remember(repos, searchQuery) {
@@ -89,13 +91,6 @@ fun RepoListScreen(
                     ) {
                         Column(Modifier.padding(16.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.Folder,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                                Spacer(Modifier.width(12.dp))
                                 Column(Modifier.weight(1f)) {
                                     Text(
                                         text = repo.displayName,
@@ -127,6 +122,11 @@ fun RepoListScreen(
                                             text = { Text(stringResource(R.string.rename_repo)) },
                                             onClick = { menuExpanded = false; showRenameDialog = repo },
                                             leadingIcon = { Icon(Icons.Default.Edit, null) }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(R.string.rename_folder)) },
+                                            onClick = { menuExpanded = false; showRenameFolderDialog = repo },
+                                            leadingIcon = { Icon(Icons.Default.DriveFileRenameOutline, null) }
                                         )
                                         DropdownMenuItem(
                                             text = { Text(stringResource(R.string.remove_project), color = MaterialTheme.colorScheme.error) },
@@ -173,11 +173,24 @@ fun RepoListScreen(
             val repo = showRenameDialog!!
             InputSheet(
                 title = stringResource(R.string.rename_repo),
-                initialValue = repo.displayName,
+                initialValue = repo.alias,
                 onDismiss = { showRenameDialog = null },
                 onConfirm = { newName ->
                     onUpdateRepo(repo.copy(alias = newName))
                     showRenameDialog = null
+                }
+            )
+        }
+
+        if (showRenameFolderDialog != null) {
+            val repo = showRenameFolderDialog!!
+            InputSheet(
+                title = stringResource(R.string.rename_folder),
+                initialValue = repo.name,
+                onDismiss = { showRenameFolderDialog = null },
+                onConfirm = { newName ->
+                    onRenameFolder(repo.path, newName)
+                    showRenameFolderDialog = null
                 }
             )
         }
